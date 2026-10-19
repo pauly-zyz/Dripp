@@ -1,0 +1,36 @@
+{
+  "name": "@dripp/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "keeper": "tsx src/keeper/main.ts",
+    "migrate": "tsx src/migrate.ts",
+    "typecheck": "tsc -p .",
+    "test": "vitest run --exclude test/e2e.test.ts",
+    "test:e2e": "vitest run test/e2e.test.ts"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "dependencies": {
+    "@dripp/indexer": "workspace:^",
+    "@dripp/shared": "workspace:^",
+    "@hono/node-server": "1.19.5",
+    "@ponder/client": "0.18.2",
+    "drizzle-orm": "0.41.0",
+    "hono": "4.13.13",
+    "ioredis": "5",
+    "pg": "8",
+    "tsx": "4",
+    "viem": "2.57.7",
+    "ws": "8",
+    "zod": "3"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.2"
+  }
+}

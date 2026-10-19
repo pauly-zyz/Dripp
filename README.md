@@ -14,5 +14,11 @@ Spesifikasi lengkap: [`SPEC.md`](SPEC.md).
 | `web/`       | Next.js + wagmi/viem + RainbowKit                            | Placeholder       |
 | `bot/`       | Bot Telegram                                                 | Placeholder       |
 
-Paket TypeScript memakai pnpm workspace (`pnpm-workspace.yaml`).
+Paket TypeScript memakai pnpm workspace (`pnpm-workspace.yaml`, Node ≥ 22.12):
+
+```sh
+pnpm install
+pnpm typecheck && pnpm test   # semua paket TypeScript
+pnpm e2e                      # anvil + kontrak + Ponder + keeper + API, dengan assertion (butuh Postgres, Redis, Foundry)
+```
 Lihat [`contracts/README.md`](contracts/README.md) untuk detail kontrak dan konfigurasi alamat Stock Token.

@@ -37,6 +37,7 @@ contract Deploy is Script {
         bool legacyRouter;
         address weth;
         address usdg;
+        address v3Factory;
     }
 
     struct Deployment {
@@ -46,11 +47,18 @@ contract Deploy is Script {
         address owner;
     }
 
-    function run() external returns (Deployment memory d) {
-        string memory path = vm.envOr("DRIPP_CONFIG", string("config/example.json"));
-        string memory json = vm.readFile(path);
+    function run() external returns (Deployment memory) {
+        string memory out = vm.envOr("DRIPP_DEPLOYMENT_OUT", string(""));
+        if (bytes(out).length == 0) out = string.concat("deployments/", vm.toString(block.chainid), ".json");
+        return runWith(vm.envOr("DRIPP_CONFIG", string("config/example.json")), out);
+    }
+
+    /// @param configPath config file to read; @param outPath where to write the deployment file.
+    function runWith(string memory configPath, string memory outPath) public returns (Deployment memory d) {
+        string memory json = vm.readFile(configPath);
         Config memory c = _readConfig(json);
 
+        uint256 startBlock = block.number;
         vm.startBroadcast();
         (, address broadcaster,) = vm.readCallers();
 
@@ -101,6 +109,65 @@ contract Deploy is Script {
         console2.log("Owner / oracle admin:", d.owner);
 
         vm.stopBroadcast();
+        _writeDeployment(d, c, json, startBlock, outPath);
+    }
+
+    /// @dev deployments/<chainId>.json: addresses + start block for the indexer, backend and keeper.
+    function _writeDeployment(
+        Deployment memory d,
+        Config memory c,
+        string memory json,
+        uint256 startBlock,
+        string memory path
+    ) internal {
+        string memory tokens = "[";
+        for (uint256 i;; i++) {
+            string memory key = string.concat(".stockTokens[", vm.toString(i), "]");
+            if (!vm.keyExistsJson(json, key)) break;
+            string memory feedKey = string.concat(key, ".feed");
+            address feed = vm.keyExistsJson(json, feedKey) ? json.readAddress(feedKey) : address(0);
+            tokens = string.concat(
+                tokens,
+                i == 0 ? "" : ",",
+                '{"ticker":"',
+                json.readString(string.concat(key, ".ticker")),
+                '","address":"',
+                vm.toString(json.readAddress(string.concat(key, ".address"))),
+                '","feed":"',
+                vm.toString(feed),
+                '"}'
+            );
+        }
+        string memory out = string.concat(
+            '{"chainId":',
+            vm.toString(block.chainid),
+            ',"startBlock":',
+            vm.toString(startBlock),
+            ',"factory":"',
+            vm.toString(address(d.factory)),
+            '","oracle":"',
+            vm.toString(address(d.oracle)),
+            '","router":"',
+            vm.toString(address(d.router)),
+            '","owner":"',
+            vm.toString(d.owner)
+        );
+        out = string.concat(
+            out,
+            '","uniswap":{"v3Factory":"',
+            vm.toString(c.v3Factory),
+            '","swapRouter":"',
+            vm.toString(c.swapRouter),
+            '","weth":"',
+            vm.toString(c.weth),
+            '","usdg":"',
+            vm.toString(c.usdg),
+            '"},"stockTokens":',
+            tokens,
+            "]}"
+        );
+        vm.writeFile(path, out);
+        console2.log("Deployment written to", path);
     }
 
     function _readConfig(string memory json) internal view returns (Config memory c) {
@@ -117,6 +184,9 @@ contract Deploy is Script {
         c.legacyRouter = json.readBool(".uniswap.legacyRouter");
         c.weth = json.readAddress(".uniswap.weth");
         c.usdg = json.readAddress(".uniswap.usdg");
+        c.v3Factory = vm.keyExistsJson(json, ".uniswap.v3Factory")
+            ? json.readAddress(".uniswap.v3Factory")
+            : address(0);
 
         require(c.multisig != address(0), "config: isi `multisig`");
         require(c.keeper != address(0), "config: isi `keeper`");

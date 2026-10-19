@@ -1,0 +1,53 @@
+name: offchain
+on:
+  push:
+    paths: ["shared/**", "indexer/**", "backend/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", ".github/workflows/offchain.yml"]
+  pull_request:
+    paths: ["shared/**", "indexer/**", "backend/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", ".github/workflows/offchain.yml"]
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  # anvil + contracts + Ponder + keeper + API with assertions (scripts/e2e-local.sh)
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dripp
+          POSTGRES_PASSWORD: dripp
+          POSTGRES_DB: dripp_e2e
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    env:
+      DATABASE_URL: postgresql://dripp:dripp@127.0.0.1:5432/dripp_e2e_ci
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: sudo apt-get install -y postgresql-client redis-tools
+      - run: PGPASSWORD=dripp psql -h 127.0.0.1 -U dripp -d dripp_e2e -c 'CREATE DATABASE dripp_e2e_ci'
+      - run: bash scripts/e2e-local.sh
+      - if: failure()
+        run: tail -n 100 .e2e/*.log

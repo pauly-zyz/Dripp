@@ -9,3 +9,7 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/*/31337/
 contracts/broadcast/LocalRobinhood.s.sol/
+.e2e/
+indexer/.ponder/
+indexer/generated/
+*.tsbuildinfo
