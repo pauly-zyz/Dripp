@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {BaseTest} from "./Base.t.sol";
 import {IDrippVault} from "../src/interfaces/IDrippVault.sol";
 import {DrippVaultFactory} from "../src/DrippVaultFactory.sol";
+import {DrippVault} from "../src/DrippVault.sol";
 import {DrippToken} from "../src/tokens/DrippToken.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -12,43 +13,162 @@ contract DrippVaultTest is BaseTest {
 
     function test_factory_createsVaultWithTokens() public view {
         assertEq(factory.getVault(address(stock), maturity), address(vault));
+        assertEq(factory.getVaultBySeries("TSLA-OCT26"), address(vault));
         assertTrue(factory.isVault(address(vault)));
         assertEq(factory.allVaultsLength(), 1);
         assertEq(pt.vault(), address(vault));
         assertEq(yt.vault(), address(vault));
         assertEq(pt.decimals(), 18);
-        assertEq(pt.symbol(), string.concat("PT-TSLAx-", vm.toString(maturity)));
+        assertEq(vault.series(), "TSLA-OCT26");
+        assertEq(pt.symbol(), "pTSLA-OCT26");
+        assertEq(yt.symbol(), "yTSLA-OCT26");
+        assertEq(pt.name(), "Dripp PT TSLA-OCT26");
         assertEq(vault.pyIndexStored(), 1e18);
+        assertEq(vault.depositCap(), type(uint256).max);
+    }
+
+    function test_factory_emitsSeriesCreated() public {
+        uint256 m = 1_806_019_200; // 2027-03-26
+        vm.expectEmit(true, true, false, false);
+        emit DrippVaultFactory.SeriesCreated(address(stock), m, address(0), address(0), address(0), "", 0);
+        vm.prank(owner);
+        DrippVault v = DrippVault(factory.createVault(address(stock), m, 5e18));
+        assertEq(v.series(), "TSLA-MAR27");
+        assertEq(v.depositCap(), 5e18);
     }
 
     function test_factory_rejectsDuplicate() public {
+        vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(DrippVaultFactory.VaultExists.selector, address(vault)));
-        factory.createVault(address(stock), maturity);
+        factory.createVault(address(stock), maturity, 0);
+    }
+
+    function test_factory_rejectsDuplicateSeriesName() public {
+        // Same stock, same month -> same "TSLA-OCT26" label.
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(DrippVaultFactory.VaultExists.selector, address(vault)));
+        factory.createVault(address(stock), maturity + 1 days, 0);
     }
 
     function test_factory_rejectsNotAllowed() public {
         ERC20 other = new MockPlainToken();
+        vm.prank(owner);
         vm.expectRevert(
             abi.encodeWithSelector(DrippVaultFactory.StockTokenNotAllowed.selector, address(other))
         );
-        factory.createVault(address(other), maturity);
+        factory.createVault(address(other), maturity, 0);
     }
 
     function test_factory_rejectsNonERC8056() public {
         ERC20 other = new MockPlainToken();
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(DrippVaultFactory.NotERC8056.selector, address(other)));
-        factory.setStockTokenAllowed(address(other), true);
+        factory.allowStockToken(address(other), "X");
     }
 
     function test_factory_rejectsPastMaturity() public {
+        vm.prank(owner);
         vm.expectRevert(DrippVaultFactory.InvalidMaturity.selector);
-        factory.createVault(address(stock), block.timestamp);
+        factory.createVault(address(stock), block.timestamp, 0);
     }
 
-    function test_factory_onlyOwnerAllowlists() public {
+    function test_factory_onlyOwner() public {
         vm.expectRevert();
-        factory.setStockTokenAllowed(address(stock), false);
+        factory.allowStockToken(address(stock), "TSLA");
+        vm.expectRevert();
+        factory.disallowStockToken(address(stock));
+        vm.expectRevert();
+        factory.createVault(address(stock), maturity + 60 days, 0);
+        vm.expectRevert();
+        factory.setDepositCap(address(vault), 0);
+        vm.expectRevert();
+        factory.unpauseVault(address(vault));
+    }
+
+    function test_factory_disallowStopsNewSeries() public {
+        vm.startPrank(owner);
+        factory.disallowStockToken(address(stock));
+        vm.expectRevert(
+            abi.encodeWithSelector(DrippVaultFactory.StockTokenNotAllowed.selector, address(stock))
+        );
+        factory.createVault(address(stock), maturity + 60 days, 0);
+        vm.stopPrank();
+        // existing series still works
+        _split(alice, 1e18);
+    }
+
+    function test_vaultAdmin_onlyFactory() public {
+        vm.expectRevert(IDrippVault.OnlyFactory.selector);
+        vault.setDepositCap(0);
+        vm.expectRevert(IDrippVault.OnlyFactory.selector);
+        vault.pause();
+    }
+
+    // ---------------- deposit cap ----------------
+
+    function test_depositCap_limitsOutstandingPrincipal() public {
+        vm.prank(owner);
+        factory.setDepositCap(address(vault), 100e18);
+        _split(alice, 60e18);
+        vm.prank(bob);
+        vm.expectRevert(IDrippVault.DepositCapExceeded.selector);
+        vault.split(41e18, bob);
+        _split(bob, 40e18);
+        // merging frees capacity again
+        vm.prank(alice);
+        vault.merge(10e18, alice);
+        _split(bob, 10e18);
+    }
+
+    function test_depositCap_isInSharesNotRawTokens() public {
+        vm.prank(owner);
+        factory.setDepositCap(address(vault), 100e18);
+        stock.setMultiplierNow(2e18);
+        vm.prank(alice);
+        vm.expectRevert(IDrippVault.DepositCapExceeded.selector);
+        vault.split(51e18, alice); // 102 shares
+    }
+
+    // ---------------- pause ----------------
+
+    function test_pause_guardianPausesOwnerUnpauses() public {
+        _split(alice, 10e18);
+        vm.prank(guardian);
+        factory.pauseVault(address(vault));
+
+        vm.startPrank(alice);
+        vm.expectRevert();
+        vault.split(1e18, alice);
+        vm.expectRevert();
+        vault.merge(1e18, alice);
+        vm.expectRevert();
+        vault.claimYield(alice);
+        vm.stopPrank();
+
+        vm.prank(guardian);
+        vm.expectRevert();
+        factory.unpauseVault(address(vault));
+
+        vm.prank(owner);
+        factory.unpauseVault(address(vault));
+        _split(alice, 1e18);
+    }
+
+    function test_pause_strangerCannotPause() public {
+        vm.prank(alice);
+        vm.expectRevert(DrippVaultFactory.NotGuardianOrOwner.selector);
+        factory.pauseVault(address(vault));
+    }
+
+    function test_pause_ytTransfersStillCheckpoint() public {
+        _split(alice, 100e18);
+        stock.setMultiplierNow(1.25e18);
+        vm.prank(guardian);
+        factory.pauseVault(address(vault));
+        vm.prank(alice);
+        assertTrue(yt.transfer(bob, 100e18));
+        assertEq(vault.accruedYield(alice), 20e18);
+        assertEq(vault.claimableYield(bob), 0);
     }
 
     // ---------------- split / merge ----------------
@@ -93,12 +213,23 @@ contract DrippVaultTest is BaseTest {
         vault.split(1e18, alice);
     }
 
-    function test_merge_revertsAfterMaturity() public {
-        _split(alice, 1e18);
+    function test_merge_afterMaturity_paysLikeRedeem() public {
+        _split(alice, 100e18);
+        stock.setMultiplierNow(1.25e18);
         vm.warp(maturity);
+        vault.updateIndex(); // freeze at 1.25
+        stock.setMultiplierNow(2e18); // post-maturity growth -> treasury
+
         vm.prank(alice);
-        vm.expectRevert(IDrippVault.Matured.selector);
-        vault.merge(1e18, alice);
+        uint256 back = vault.merge(100e18, alice);
+        assertEq(back, 50e18); // 100 shares at 2.0
+        assertEq(stock.balanceOf(treasury), 30e18); // 80 (backing at maturity) - 50
+        assertEq(pt.balanceOf(alice), 0);
+        assertEq(yt.balanceOf(alice), 0);
+        // pre-maturity yield is still claimable after YT is burned
+        vm.prank(alice);
+        assertEq(vault.claimYield(alice), 20e18);
+        assertEq(stock.balanceOf(address(vault)), 0);
     }
 
     function test_merge_requiresBothTokens() public {

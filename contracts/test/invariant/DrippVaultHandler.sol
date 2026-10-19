@@ -70,13 +70,14 @@ contract DrippVaultHandler is Test {
     }
 
     function merge(uint256 actorSeed, uint256 amount) external track {
-        if (vault.isMatured()) return;
         address a = _actor(actorSeed);
         uint256 max = pt.balanceOf(a) < yt.balanceOf(a) ? pt.balanceOf(a) : yt.balanceOf(a);
         if (max == 0) return;
         amount = bound(amount, 1, max);
+        uint256 tBefore = stock.balanceOf(treasury);
         vm.prank(a);
-        ghostWithdrawn += vault.merge(amount, a);
+        uint256 out = vault.merge(amount, a);
+        ghostWithdrawn += out + (stock.balanceOf(treasury) - tBefore);
     }
 
     function redeemPT(uint256 actorSeed, uint256 amount) external track {

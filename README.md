@@ -1,14 +1,18 @@
 # Dripp
 
-Yield-stripping untuk Stock Token ERC-8056: setor saham ter-tokenisasi, pecah menjadi
-**PT** (pokok, ditebus saat jatuh tempo) dan **YT** (hasil dari kenaikan `uiMultiplier`).
+Split the stock. Trade the drip.
 
-| Folder       | Isi                                                        | Status            |
-|--------------|------------------------------------------------------------|-------------------|
-| `contracts/` | Smart contract (Foundry + OpenZeppelin)                    | Diimplementasikan |
-| `indexer/`   | Indexer event on-chain (Split, Merge, RedeemPT, YieldClaimed…) | Placeholder     |
-| `backend/`   | API untuk web & bot                                        | Placeholder       |
-| `web/`       | Frontend dApp                                              | Placeholder       |
-| `bot/`       | Keeper (mis. memanggil `updateIndex()` tepat saat jatuh tempo) | Placeholder     |
+Lapisan dividen untuk Stock Token ERC-8056 di Robinhood Chain: setor saham ter-tokenisasi, pecah menjadi
+**PT** (pokok, ditebus saat jatuh tempo) dan **YT** (dividen dari kenaikan `uiMultiplier`).
+Spesifikasi lengkap: [`SPEC.md`](SPEC.md).
 
-Lihat [`contracts/README.md`](contracts/README.md) untuk detail kontrak.
+| Folder       | Isi                                                          | Status            |
+|--------------|--------------------------------------------------------------|-------------------|
+| `contracts/` | Smart contract (Foundry + OpenZeppelin)                      | Fase 1: vault, PT/YT, factory |
+| `indexer/`   | Indexer Ponder (SeriesCreated, Split, Merge, Redeem, YieldClaimed…) | Placeholder |
+| `backend/`   | API Node.js TypeScript + PostgreSQL + Redis, keeper          | Placeholder       |
+| `web/`       | Next.js + wagmi/viem + RainbowKit                            | Placeholder       |
+| `bot/`       | Bot Telegram                                                 | Placeholder       |
+
+Paket TypeScript memakai pnpm workspace (`pnpm-workspace.yaml`).
+Lihat [`contracts/README.md`](contracts/README.md) untuk detail kontrak dan konfigurasi alamat Stock Token.

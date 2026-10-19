@@ -1,3 +1,4 @@
 # web
 
-Placeholder. Frontend dApp untuk split / merge / redeem PT / klaim yield YT.
+Placeholder (Prompt 4 SPEC.md). Next.js + Tailwind + wagmi/viem + RainbowKit: Markets, Fixed Income,
+Detail seri (split / merge / redeem PT / klaim YT), Portofolio, Transparansi.

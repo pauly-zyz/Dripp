@@ -1,0 +1,10 @@
+{
+  "name": "dripp",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "contracts:build": "cd contracts && forge build --sizes",
+    "contracts:test": "cd contracts && forge test",
+    "contracts:fmt": "cd contracts && forge fmt"
+  }
+}

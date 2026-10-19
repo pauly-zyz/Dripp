@@ -8,19 +8,22 @@ interface IDrippVault {
     event Merge(
         address indexed caller, address indexed receiver, uint256 pyIn, uint256 sharesOut, uint256 index
     );
-    event RedeemPT(
+    event Redeem(
         address indexed caller, address indexed receiver, uint256 ptIn, uint256 sharesOut, uint256 index
     );
     event YieldClaimed(address indexed user, address indexed receiver, uint256 sharesOut);
     event IndexUpdated(uint256 oldIndex, uint256 newIndex);
     event MaturityIndexSet(uint256 index);
     event PostMaturityYieldToTreasury(address indexed treasury, uint256 shares);
+    event DepositCapUpdated(uint256 cap);
 
     error Matured();
     error NotMatured();
     error ZeroAmount();
     error OnlyYT();
+    error OnlyFactory();
     error InvalidMultiplier();
+    error DepositCapExceeded();
 
     /// @notice Called by the YT token before every balance change (mint, burn, transfer).
     function onYTBalanceChange(address from, address to) external;

@@ -1,0 +1,5 @@
+packages:
+  - indexer
+  - backend
+  - web
+  - bot

@@ -1,4 +1,4 @@
 # bot
 
-Placeholder. Keeper: panggil `DrippVault.updateIndex()` tepat saat `maturity` agar akrual YT
-dibekukan pada indeks yang benar, dan secara berkala setelah `UIMultiplierUpdated` berlaku.
+Placeholder (Prompt 5 SPEC.md). Bot Telegram: `/earn <saham>`, `/buy pt|yt <seri> <jumlah>`,
+`/portfolio`, `/claim`, notifikasi dividen, jatuh tempo, dan Stock Drip.

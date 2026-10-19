@@ -1,18 +1,23 @@
 {
-  "_comment": "Salin ke config/<network>.json lalu isi. Alamat 0x000... harus diganti. maturities = unix timestamp (detik).",
+  "_comment": "Salin ke config/<network>.json lalu isi. Lihat contracts/README.md untuk arti tiap field.",
+  "multisig": "0x0000000000000000000000000000000000000000",
+  "timelockDelay": 172800,
   "owner": "0x0000000000000000000000000000000000000000",
+  "guardian": "0x0000000000000000000000000000000000000000",
   "treasury": "0x0000000000000000000000000000000000000000",
   "factory": "0x0000000000000000000000000000000000000000",
   "stockTokens": [
     {
-      "symbol": "TSLAx",
+      "ticker": "AAPL",
       "address": "0x0000000000000000000000000000000000000000",
-      "maturities": [1798675200, 1814400000]
+      "depositCap": 1000,
+      "maturities": [1806019200]
     },
     {
-      "symbol": "AAPLx",
+      "ticker": "TSLA",
       "address": "0x0000000000000000000000000000000000000000",
-      "maturities": [1798675200]
+      "depositCap": 500,
+      "maturities": [1806019200, 1821916800]
     }
   ]
 }
