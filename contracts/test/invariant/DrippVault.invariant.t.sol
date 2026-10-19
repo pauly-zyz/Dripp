@@ -15,7 +15,9 @@ contract DrippVaultInvariantTest is StdInvariant, BaseTest {
 
     function setUp() public override {
         super.setUp();
-        handler = new DrippVaultHandler(vault, stock, treasury);
+        handler = new DrippVaultHandler(vault, oracle, stock, keeper, guardian);
+        vm.prank(owner);
+        factory.setFees(500, 10, 6_000); // SPEC fees on
         targetContract(address(handler));
     }
 
@@ -65,6 +67,18 @@ contract DrippVaultInvariantTest is StdInvariant, BaseTest {
     function invariant_ptSupplyEqualsYtSupplyBeforeMaturity() public view {
         if (!vault.isMatured()) assertEq(pt.totalSupply(), yt.totalSupply());
         else assertLe(pt.totalSupply(), yt.totalSupply());
+    }
+
+    /// Tidak ada YT yang mengakrual dari split: confirming a stock split never changes YT claims.
+    function invariant_noYtAccrualFromSplits() public view {
+        assertFalse(handler.ghostSplitAccrued(), "stock split accrued to YT");
+    }
+
+    /// The vault index only follows confirmed dividends: it equals the oracle's scaled dividend index.
+    function invariant_indexFollowsOracle() public {
+        _sync();
+        uint256 expected = oracle.dividendIndex(address(stock)) * vault.baseSplitFactor() / 1e18;
+        assertEq(vault.pyIndexStored(), expected);
     }
 
     /// The accrual index is a high-water mark: it never goes down.

@@ -9,43 +9,45 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IScaledUIAmount} from "./interfaces/IScaledUIAmount.sol";
 import {IDrippVault} from "./interfaces/IDrippVault.sol";
+import {IDrippVaultFactory} from "./interfaces/IDrippVaultFactory.sol";
+import {IDividendOracle} from "./interfaces/IDividendOracle.sol";
 import {PTToken} from "./tokens/PTToken.sol";
 import {YTToken} from "./tokens/YTToken.sol";
-
-interface IDrippVaultFactoryTreasury {
-    function treasury() external view returns (address);
-}
 
 /// @title DrippVault
 /// @notice Splits an ERC-8056 Stock Token into a Principal Token (PT) and a Yield Token (YT)
 ///         for one series (stock, maturity), e.g. AAPL-MAR27.
 ///
-///         Unit of account: PT/YT are denominated in shares, i.e. the stock token's *UI amount*
-///         (raw * index / 1e18), where `index` is the high-water mark of `uiMultiplier()`.
-///         1 PT + 1 YT = 1 share.
+///         Unit of account: PT/YT are denominated in shares as of series creation:
+///         raw * index / 1e18, where `index` = DividendOracle dividend index * splitFactor at creation.
+///         At creation index == uiMultiplier, so 1 PT + 1 YT = 1 share (UI amount). The index only moves
+///         on confirmed dividends; after a stock split each PT is simply worth more shares
+///         (`sharesPerPT`), and YT gains nothing.
 ///
 ///         - split:    deposit `s` raw tokens at index I -> mint s*I/1e18 PT and the same amount of YT.
 ///         - merge:    burn `a` PT + `a` YT (any time) -> receive a*1e18/I raw tokens.
 ///         - redeemPT: after maturity, burn `a` PT -> receive a*1e18/I_live raw tokens; tokens freed by
 ///                     multiplier growth after maturity go to the treasury.
 ///         - YT yield: holding `a` YT while the index moves I0 -> I1 accrues
-///                     a*1e18/I0 - a*1e18/I1 raw tokens, claimable any time. Accrual stops at maturity.
+///                     a*1e18/I0 - a*1e18/I1 raw tokens, claimable any time (minus the YT fee).
+///                     Accrual stops at the index the oracle had confirmed as of `maturity`.
 ///
-///         Solvency: tokens held >= PT supply * 1e18 / I + all YT yield owed. Using the high-water
-///         mark means a falling multiplier never creates a deficit (PT absorbs the drop instead).
-///
-/// @dev    Every multiplier increase is currently treated as a dividend. Telling dividends apart from
-///         stock splits (DividendOracle, 24h dispute window) is a later milestone; see SPEC.md.
+///         Solvency: tokens held >= PT supply * 1e18 / I + all YT yield owed, because I never decreases
+///         (high-water mark on top of the oracle's monotonic dividend index).
 contract DrippVault is IDrippVault, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     uint256 public constant ONE = 1e18;
+    uint256 internal constant BPS = 10_000;
 
     IERC20 public immutable stockToken;
     PTToken public immutable pt;
     YTToken public immutable yt;
     uint256 public immutable maturity;
     address public immutable factory;
+    IDividendOracle public immutable oracle;
+    /// @notice Oracle split factor at creation; index = dividendIndex * baseSplitFactor / 1e18.
+    uint256 public immutable baseSplitFactor;
     /// @notice Series label, e.g. "AAPL-MAR27".
     string public series;
 
@@ -53,9 +55,10 @@ contract DrippVault is IDrippVault, ReentrancyGuard, Pausable {
     ///         type(uint256).max means no cap.
     uint256 public depositCap;
 
-    /// @notice High-water mark of the stock token's uiMultiplier (18 decimals).
+    /// @notice High-water mark of the series index (18 decimals).
     uint256 public pyIndexStored;
-    /// @notice Index frozen for YT accrual, set on the first interaction at/after maturity.
+    /// @notice Index frozen for YT accrual: the oracle's index as of `maturity`, set on the first
+    ///         interaction at/after maturity.
     uint256 public indexAtMaturity;
 
     /// @notice Index at which each user's YT yield was last checkpointed.
@@ -86,9 +89,12 @@ contract DrippVault is IDrippVault, ReentrancyGuard, Pausable {
         series = series_;
         depositCap = depositCap_;
 
-        uint256 m = IScaledUIAmount(stockToken_).uiMultiplier();
-        if (m == 0) revert InvalidMultiplier();
-        pyIndexStored = m;
+        IDividendOracle oracle_ = IDrippVaultFactory(factory_).oracle();
+        oracle = oracle_;
+        baseSplitFactor = oracle_.splitFactor(stockToken_);
+        uint256 index = _scale(oracle_.dividendIndex(stockToken_));
+        if (index == 0) revert InvalidMultiplier();
+        pyIndexStored = index;
 
         pt = new PTToken(
             string.concat("Dripp PT ", series_),
@@ -171,20 +177,28 @@ contract DrippVault is IDrippVault, ReentrancyGuard, Pausable {
     }
 
     /// @notice Claim all YT yield accrued by the caller, paid in raw stock tokens.
+    ///         The YT fee (SPEC: 5%) is split between Stock Drip and the treasury.
+    /// @return amount Raw tokens sent to `receiver`, after fee.
     function claimYield(address receiver) external nonReentrant whenNotPaused returns (uint256 amount) {
         _updateIndex();
         _checkpoint(msg.sender);
-        amount = accruedYield[msg.sender];
-        if (amount != 0) {
+        uint256 gross = accruedYield[msg.sender];
+        uint256 fee;
+        if (gross != 0) {
             accruedYield[msg.sender] = 0;
-            totalAccruedYield -= amount;
+            totalAccruedYield -= gross;
+
+            IDrippVaultFactory.FeeConfig memory cfg = IDrippVaultFactory(factory).feeConfig();
+            fee = gross * cfg.ytFeeBps / BPS;
+            amount = gross - fee;
             stockToken.safeTransfer(receiver, amount);
+            if (fee != 0) _payFee(cfg, fee);
         }
-        emit YieldClaimed(msg.sender, receiver, amount);
+        emit YieldClaimed(msg.sender, receiver, amount, fee);
     }
 
-    /// @notice Permissionless poke: refresh the high-water index (and freeze the maturity index).
-    ///         A keeper should call this right at maturity so YT accrual stops at the right index.
+    /// @notice Permissionless poke: pull the latest confirmed index from the oracle (and freeze the
+    ///         maturity index once matured).
     function updateIndex() external nonReentrant returns (uint256) {
         return _updateIndex();
     }
@@ -224,14 +238,20 @@ contract DrippVault is IDrippVault, ReentrancyGuard, Pausable {
 
     /// @notice High-water index as it would be after an update.
     function currentIndex() public view returns (uint256) {
-        uint256 m = IScaledUIAmount(address(stockToken)).uiMultiplier();
-        return m > pyIndexStored ? m : pyIndexStored;
+        uint256 i = _scale(oracle.dividendIndex(address(stockToken)));
+        return i > pyIndexStored ? i : pyIndexStored;
     }
 
     /// @notice Index used for YT accrual right now (frozen after maturity).
     function ytIndex() public view returns (uint256) {
         if (!isMatured()) return currentIndex();
-        return indexAtMaturity != 0 ? indexAtMaturity : currentIndex();
+        return indexAtMaturity != 0 ? indexAtMaturity : _maturityIndex(currentIndex());
+    }
+
+    /// @notice Shares (UI amount) one PT currently redeems for, 1e18 = 1 share. Grows with stock splits
+    ///         and with dividends not yet confirmed by the oracle.
+    function sharesPerPT() external view returns (uint256) {
+        return Math.mulDiv(IScaledUIAmount(address(stockToken)).uiMultiplier(), ONE, currentIndex());
     }
 
     /// @notice Total YT yield claimable by `user` (checkpointed + pending), in raw tokens.
@@ -274,7 +294,7 @@ contract DrippVault is IDrippVault, ReentrancyGuard, Pausable {
         if (im != 0) {
             uint256 toTreasury = Math.mulDiv(amount, ONE, im) - sharesOut; // im <= index
             if (toTreasury != 0) {
-                address treasury = IDrippVaultFactoryTreasury(factory).treasury();
+                address treasury = IDrippVaultFactory(factory).treasury();
                 stockToken.safeTransfer(treasury, toTreasury);
                 emit PostMaturityYieldToTreasury(treasury, toTreasury);
             }
@@ -282,18 +302,37 @@ contract DrippVault is IDrippVault, ReentrancyGuard, Pausable {
     }
 
     function _updateIndex() internal returns (uint256 index) {
-        uint256 m = IScaledUIAmount(address(stockToken)).uiMultiplier();
-        if (m == 0) revert InvalidMultiplier();
+        uint256 i = _scale(oracle.dividendIndex(address(stockToken)));
         index = pyIndexStored;
-        if (m > index) {
-            emit IndexUpdated(index, m);
-            index = m;
-            pyIndexStored = m;
+        if (i > index) {
+            emit IndexUpdated(index, i);
+            index = i;
+            pyIndexStored = i;
         }
         if (indexAtMaturity == 0 && isMatured()) {
-            indexAtMaturity = index;
-            emit MaturityIndexSet(index);
+            uint256 im = _maturityIndex(index);
+            indexAtMaturity = im;
+            emit MaturityIndexSet(im);
         }
+    }
+
+    /// @dev Oracle index as of `maturity`. Every index used before maturity was read from the oracle at
+    ///      an earlier time, and the oracle index never decreases, so this is >= any YT checkpoint.
+    ///      `live` caps it as a defensive bound.
+    function _maturityIndex(uint256 live) internal view returns (uint256 im) {
+        im = _scale(oracle.dividendIndexAt(address(stockToken), maturity));
+        if (im > live) im = live;
+    }
+
+    function _scale(uint256 dividendIndex_) internal view returns (uint256) {
+        return Math.mulDiv(dividendIndex_, baseSplitFactor, ONE);
+    }
+
+    function _payFee(IDrippVaultFactory.FeeConfig memory cfg, uint256 fee) internal {
+        uint256 toDrip = cfg.stockDrip == address(0) ? 0 : fee * cfg.stockDripShareBps / BPS;
+        if (toDrip != 0) stockToken.safeTransfer(cfg.stockDrip, toDrip);
+        if (fee - toDrip != 0) stockToken.safeTransfer(cfg.treasury, fee - toDrip);
+        emit FeePaid(cfg.stockDrip, toDrip, cfg.treasury, fee - toDrip);
     }
 
     function _currentYtIndex() internal view returns (uint256) {

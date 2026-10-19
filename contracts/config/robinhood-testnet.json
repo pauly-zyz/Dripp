@@ -1,0 +1,23 @@
+{
+  "_comment": "Robinhood Chain testnet (chain id 46630). Uniswap di testnet adalah deployment komunitas dengan SwapRouter klasik (legacyRouter = true). Stock Token testnet dari faucet mungkin tidak punya uiMultiplier(); jika begitu, factory menolaknya (NotERC8056) dan Anda perlu Stock Token ERC-8056 sendiri. Sumber alamat: github.com/nirholas/robinhood-chain-sdk.",
+  "multisig": "0x0000000000000000000000000000000000000000",
+  "keeper": "0x0000000000000000000000000000000000000000",
+  "timelockDelay": 172800,
+  "owner": "0x0000000000000000000000000000000000000000",
+  "guardian": "0x0000000000000000000000000000000000000000",
+  "treasury": "0x0000000000000000000000000000000000000000",
+  "stockDrip": "0x0000000000000000000000000000000000000000",
+  "factory": "0x0000000000000000000000000000000000000000",
+  "oracle": "0x0000000000000000000000000000000000000000",
+  "uniswap": {
+    "swapRouter": "0x1b81D678ffb9C0263b24A97847620C99d213eB14",
+    "legacyRouter": true,
+    "weth": "0x7943e237c7F95DA44E0301572D358911207852Fa",
+    "usdg": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
+    "v3Factory": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+    "positionManager": "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364"
+  },
+  "stockTokens": [
+    { "ticker": "TSLA", "address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", "depositCap": 0, "maturities": [1806019200] }
+  ]
+}

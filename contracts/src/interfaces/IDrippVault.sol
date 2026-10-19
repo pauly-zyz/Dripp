@@ -11,7 +11,11 @@ interface IDrippVault {
     event Redeem(
         address indexed caller, address indexed receiver, uint256 ptIn, uint256 sharesOut, uint256 index
     );
-    event YieldClaimed(address indexed user, address indexed receiver, uint256 sharesOut);
+    /// @param sharesOut raw tokens sent to `receiver`; `fee` raw tokens went to Stock Drip / treasury.
+    event YieldClaimed(address indexed user, address indexed receiver, uint256 sharesOut, uint256 fee);
+    event FeePaid(
+        address indexed stockDrip, uint256 toStockDrip, address indexed treasury, uint256 toTreasury
+    );
     event IndexUpdated(uint256 oldIndex, uint256 newIndex);
     event MaturityIndexSet(uint256 index);
     event PostMaturityYieldToTreasury(address indexed treasury, uint256 shares);

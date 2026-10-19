@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import {ERC165Checker} from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-
-import {IScaledUIAmount, IScaledUIAmountNewUIMultiplier} from "./interfaces/IScaledUIAmount.sol";
+import {IScaledUIAmount} from "./interfaces/IScaledUIAmount.sol";
+import {IDrippVaultFactory} from "./interfaces/IDrippVaultFactory.sol";
+import {IDividendOracle} from "./interfaces/IDividendOracle.sol";
 import {DrippVault} from "./DrippVault.sol";
 import {DrippVaultDeployer} from "./DrippVaultDeployer.sol";
 import {SeriesLabel} from "./libraries/SeriesLabel.sol";
@@ -16,18 +16,21 @@ import {SeriesLabel} from "./libraries/SeriesLabel.sol";
 ///
 ///         Roles:
 ///         - owner (multisig behind a 48h TimelockController): allowlist stock tokens, create series,
-///           set deposit caps, treasury, guardian, unpause.
+///           set deposit caps, fees, treasury, Stock Drip receiver, guardian, unpause.
 ///         - guardian (multisig, no timelock): can pause a vault immediately in an emergency.
 ///
 ///         Stock token addresses are not hardcoded; they come from contracts/config/<network>.json
 ///         through script/Deploy.s.sol.
-contract DrippVaultFactory is Ownable {
+contract DrippVaultFactory is IDrippVaultFactory, Ownable {
     uint256 public constant UNCAPPED = type(uint256).max;
+    uint16 public constant MAX_YT_FEE_BPS = 1_000; // 10%
+    uint16 public constant MAX_ZAP_FEE_BPS = 100; // 1%
 
     DrippVaultDeployer public immutable deployer;
+    IDividendOracle public immutable oracle;
 
-    address public treasury;
     address public guardian;
+    FeeConfig internal _fees;
 
     mapping(address stockToken => bool) public isStockTokenAllowed;
     /// @notice Ticker used in series names, e.g. "AAPL" -> "AAPL-MAR27", "pAAPL-MAR27".
@@ -39,6 +42,8 @@ contract DrippVaultFactory is Ownable {
     address[] public allVaults;
 
     event TreasuryUpdated(address indexed treasury);
+    event StockDripUpdated(address indexed stockDrip);
+    event FeesUpdated(uint16 ytFeeBps, uint16 zapFeeBps, uint16 stockDripShareBps);
     event GuardianUpdated(address indexed guardian);
     event StockTokenAllowed(address indexed stockToken, bool allowed, string ticker);
     event SeriesCreated(
@@ -59,12 +64,23 @@ contract DrippVaultFactory is Ownable {
     error VaultExists(address vault);
     error UnknownVault(address vault);
     error NotGuardianOrOwner();
+    error NotInOracle(address stockToken);
+    error FeeTooHigh();
 
-    constructor(address owner_, address treasury_, address guardian_, DrippVaultDeployer deployer_)
-        Ownable(owner_)
-    {
-        if (address(deployer_) == address(0)) revert ZeroAddress();
+    /// @dev Fees start at the SPEC values: 5% YT claims, 0.1% zaps, 60% of fees to Stock Drip.
+    constructor(
+        address owner_,
+        address treasury_,
+        address guardian_,
+        DrippVaultDeployer deployer_,
+        IDividendOracle oracle_
+    ) Ownable(owner_) {
+        if (address(deployer_) == address(0) || address(oracle_) == address(0)) {
+            revert ZeroAddress();
+        }
         deployer = deployer_;
+        oracle = oracle_;
+        _setFees(500, 10, 6_000);
         _setTreasury(treasury_);
         guardian = guardian_;
         emit GuardianUpdated(guardian_);
@@ -78,17 +94,29 @@ contract DrippVaultFactory is Ownable {
         _setTreasury(treasury_);
     }
 
+    /// @notice Stock Drip receiver (DrippStaking). address(0) sends the whole fee to the treasury.
+    function setStockDrip(address stockDrip_) external onlyOwner {
+        _fees.stockDrip = stockDrip_;
+        emit StockDripUpdated(stockDrip_);
+    }
+
+    function setFees(uint16 ytFeeBps, uint16 zapFeeBps, uint16 stockDripShareBps) external onlyOwner {
+        _setFees(ytFeeBps, zapFeeBps, stockDripShareBps);
+    }
+
     /// @notice Guardian may be address(0) (only the owner can pause then).
     function setGuardian(address guardian_) external onlyOwner {
         guardian = guardian_;
         emit GuardianUpdated(guardian_);
     }
 
-    /// @notice Allow a stock token under `ticker`. The token must implement ERC-8056 (via ERC-165).
+    /// @notice Allow a stock token under `ticker`. It must expose ERC-8056 `uiMultiplier()` and be
+    ///         registered in the DividendOracle.
     function allowStockToken(address stockToken, string calldata ticker) external onlyOwner {
         if (stockToken == address(0)) revert ZeroAddress();
         if (bytes(ticker).length == 0) revert EmptyTicker();
         if (!isERC8056(stockToken)) revert NotERC8056(stockToken);
+        if (!oracle.isRegistered(stockToken)) revert NotInOracle(stockToken);
         isStockTokenAllowed[stockToken] = true;
         tickerOf[stockToken] = ticker;
         emit StockTokenAllowed(stockToken, true, ticker);
@@ -168,9 +196,27 @@ contract DrippVaultFactory is Ownable {
         return allVaults.length;
     }
 
+    /// @notice True if `token` answers ERC-8056 `uiMultiplier()` with a non-zero value. ERC-165 is not
+    ///         required, since deployed Stock Tokens may not advertise it.
     function isERC8056(address token) public view returns (bool) {
-        return ERC165Checker.supportsInterface(token, type(IScaledUIAmount).interfaceId)
-            && ERC165Checker.supportsInterface(token, type(IScaledUIAmountNewUIMultiplier).interfaceId);
+        if (token.code.length == 0) return false;
+        try IScaledUIAmount(token).uiMultiplier() returns (uint256 m) {
+            return m != 0;
+        } catch {
+            return false;
+        }
+    }
+
+    function treasury() external view returns (address) {
+        return _fees.treasury;
+    }
+
+    function stockDrip() external view returns (address) {
+        return _fees.stockDrip;
+    }
+
+    function feeConfig() external view returns (FeeConfig memory) {
+        return _fees;
     }
 
     // ------------------------------------------------------------------
@@ -184,7 +230,17 @@ contract DrippVaultFactory is Ownable {
 
     function _setTreasury(address treasury_) internal {
         if (treasury_ == address(0)) revert ZeroAddress();
-        treasury = treasury_;
+        _fees.treasury = treasury_;
         emit TreasuryUpdated(treasury_);
+    }
+
+    function _setFees(uint16 ytFeeBps, uint16 zapFeeBps, uint16 stockDripShareBps) internal {
+        if (ytFeeBps > MAX_YT_FEE_BPS || zapFeeBps > MAX_ZAP_FEE_BPS || stockDripShareBps > 10_000) {
+            revert FeeTooHigh();
+        }
+        _fees.ytFeeBps = ytFeeBps;
+        _fees.zapFeeBps = zapFeeBps;
+        _fees.stockDripShareBps = stockDripShareBps;
+        emit FeesUpdated(ytFeeBps, zapFeeBps, stockDripShareBps);
     }
 }

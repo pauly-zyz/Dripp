@@ -8,7 +8,7 @@ Spesifikasi lengkap: [`SPEC.md`](SPEC.md).
 
 | Folder       | Isi                                                          | Status            |
 |--------------|--------------------------------------------------------------|-------------------|
-| `contracts/` | Smart contract (Foundry + OpenZeppelin)                      | Fase 1: vault, PT/YT, factory |
+| `contracts/` | Smart contract (Foundry + OpenZeppelin)                      | Vault, PT/YT, factory, DividendOracle, DrippRouter |
 | `indexer/`   | Indexer Ponder (SeriesCreated, Split, Merge, Redeem, YieldClaimed…) | Placeholder |
 | `backend/`   | API Node.js TypeScript + PostgreSQL + Redis, keeper          | Placeholder       |
 | `web/`       | Next.js + wagmi/viem + RainbowKit                            | Placeholder       |

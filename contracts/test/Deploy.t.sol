@@ -6,48 +6,95 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 import {Deploy} from "../script/Deploy.s.sol";
 import {DrippVaultFactory} from "../src/DrippVaultFactory.sol";
 import {DrippVault} from "../src/DrippVault.sol";
+import {DividendOracle} from "../src/DividendOracle.sol";
 import {MockStockToken} from "./mocks/MockStockToken.sol";
 
 contract DeployScriptTest is Test {
     string constant PATH = "cache/deploy-test.json";
 
+    address multisig = makeAddr("multisig");
+    address keeper = makeAddr("keeper");
+    address treasury = makeAddr("treasury");
+    address stockDrip = makeAddr("stockDrip");
+    address swapRouter = makeAddr("swapRouter");
+    MockStockToken aapl;
+
     /// The example config ships with placeholder addresses, so the script must refuse to run.
     function test_exampleConfigRequiresAddresses() public {
         vm.setEnv("DRIPP_CONFIG", "config/example.json");
         Deploy d = new Deploy();
-        vm.expectRevert(bytes("config: isi `multisig` (atau `owner` dan `guardian`)"));
+        vm.expectRevert(bytes("config: isi `multisig`"));
         d.run();
     }
 
-    function test_filledConfigDeploysSeriesAndTimelock() public {
+    function test_filledConfigDeploysEverything() public {
         vm.warp(1_790_000_000); // 2026-09
-        MockStockToken aapl = new MockStockToken("Apple", "AAPLx");
-        address multisig = makeAddr("multisig");
-        address treasury = makeAddr("treasury");
+        aapl = new MockStockToken("Apple", "AAPLx");
+        _writeConfig();
+        vm.setEnv("DRIPP_CONFIG", PATH);
+        Deploy.Deployment memory d = new Deploy().run();
+        vm.removeFile(PATH);
+        _checkGovernance(d);
+        _checkSeries(d);
+    }
 
+    function _writeConfig() internal {
         string memory json = string.concat(
             '{"multisig":"',
             vm.toString(multisig),
+            '","keeper":"',
+            vm.toString(keeper),
             '","timelockDelay":172800,"owner":"0x0000000000000000000000000000000000000000",',
             '"guardian":"0x0000000000000000000000000000000000000000","treasury":"',
             vm.toString(treasury),
-            '","factory":"0x0000000000000000000000000000000000000000","stockTokens":[{"ticker":"AAPL",',
-            '"address":"',
+            '","stockDrip":"',
+            vm.toString(stockDrip),
+            '","factory":"0x0000000000000000000000000000000000000000",',
+            '"oracle":"0x0000000000000000000000000000000000000000",'
+        );
+        json = string.concat(
+            json,
+            '"uniswap":{"swapRouter":"',
+            vm.toString(swapRouter),
+            '","legacyRouter":false,"weth":"',
+            vm.toString(makeAddr("weth")),
+            '","usdg":"',
+            vm.toString(makeAddr("usdg")),
+            '"},"stockTokens":[{"ticker":"AAPL","address":"',
             vm.toString(address(aapl)),
             '","depositCap":1000,"maturities":[1806019200,1821916800]}]}'
         );
         vm.writeFile(PATH, json);
-        vm.setEnv("DRIPP_CONFIG", PATH);
+    }
 
-        DrippVaultFactory factory = new Deploy().run();
+    function _checkGovernance(Deploy.Deployment memory d) internal view {
+        DrippVaultFactory factory = d.factory;
+        DividendOracle oracle = d.oracle;
 
-        assertEq(factory.treasury(), treasury);
-        assertEq(factory.guardian(), multisig);
-        TimelockController timelock = TimelockController(payable(factory.owner()));
+        // governance
+        TimelockController timelock = TimelockController(payable(d.owner));
+        assertEq(factory.owner(), d.owner);
         assertEq(timelock.getMinDelay(), 2 days);
         assertTrue(timelock.hasRole(timelock.PROPOSER_ROLE(), multisig));
         assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), multisig));
+        assertTrue(oracle.hasRole(oracle.DEFAULT_ADMIN_ROLE(), d.owner));
+        assertFalse(oracle.hasRole(oracle.DEFAULT_ADMIN_ROLE(), DEFAULT_SENDER));
+        assertTrue(oracle.hasRole(oracle.PROPOSER_ROLE(), keeper));
+        assertTrue(oracle.hasRole(oracle.DISPUTER_ROLE(), multisig));
+        assertEq(factory.guardian(), multisig);
 
+        // fees
+        assertEq(factory.treasury(), treasury);
+        assertEq(factory.stockDrip(), stockDrip);
+        assertEq(factory.feeConfig().ytFeeBps, 500);
+        assertEq(factory.feeConfig().zapFeeBps, 10);
+        assertEq(factory.feeConfig().stockDripShareBps, 6_000);
+    }
+
+    function _checkSeries(Deploy.Deployment memory d) internal view {
+        DrippVaultFactory factory = d.factory;
+        DividendOracle oracle = d.oracle;
+        assertTrue(oracle.isRegistered(address(aapl)));
         assertTrue(factory.isStockTokenAllowed(address(aapl)));
         assertEq(factory.allVaultsLength(), 2);
         DrippVault mar = DrippVault(factory.getVaultBySeries("AAPL-MAR27"));
@@ -56,6 +103,9 @@ contract DeployScriptTest is Test {
         assertEq(mar.yt().symbol(), "yAAPL-MAR27");
         assertEq(mar.depositCap(), 1000e18);
         assertTrue(factory.getVaultBySeries("AAPL-SEP27") != address(0));
-        vm.removeFile(PATH);
+
+        // router
+        assertEq(d.router.swapRouter(), swapRouter);
+        assertEq(address(d.router.factory()), address(factory));
     }
 }
