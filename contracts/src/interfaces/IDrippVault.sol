@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+interface IDrippVault {
+    event Split(
+        address indexed caller, address indexed receiver, uint256 sharesIn, uint256 pyOut, uint256 index
+    );
+    event Merge(
+        address indexed caller, address indexed receiver, uint256 pyIn, uint256 sharesOut, uint256 index
+    );
+    event RedeemPT(
+        address indexed caller, address indexed receiver, uint256 ptIn, uint256 sharesOut, uint256 index
+    );
+    event YieldClaimed(address indexed user, address indexed receiver, uint256 sharesOut);
+    event IndexUpdated(uint256 oldIndex, uint256 newIndex);
+    event MaturityIndexSet(uint256 index);
+    event PostMaturityYieldToTreasury(address indexed treasury, uint256 shares);
+
+    error Matured();
+    error NotMatured();
+    error ZeroAmount();
+    error OnlyYT();
+    error InvalidMultiplier();
+
+    /// @notice Called by the YT token before every balance change (mint, burn, transfer).
+    function onYTBalanceChange(address from, address to) external;
+}
