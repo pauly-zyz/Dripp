@@ -87,6 +87,14 @@ contract DrippRouterForkTest is ZapScenario {
     }
 
     function _pathToStock(address tokenIn) internal view override returns (bytes memory path) {
+        if (tokenIn == usdg && routeTokens[1] != usdg) {
+            // WETH route is direct: use a USDG/stock pool, else go USDG -> WETH -> stock.
+            (uint24 f, bool ok) = _bestFee(usdg, stock);
+            if (ok) return abi.encodePacked(usdg, f, stock);
+            (uint24 fw, bool okw) = _bestFee(usdg, weth);
+            require(okw, "no USDG route to stock");
+            return abi.encodePacked(usdg, fw, weth, routeFees[0], stock);
+        }
         uint256 start = tokenIn == weth ? 0 : 1;
         require(routeTokens[start] == tokenIn, "token not on route");
         path = abi.encodePacked(routeTokens[start]);
