@@ -48,6 +48,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: sudo apt-get install -y postgresql-client redis-tools
       - run: PGPASSWORD=dripp psql -h 127.0.0.1 -U dripp -d dripp_e2e -c 'CREATE DATABASE dripp_e2e_ci'
-      - run: bash scripts/e2e-local.sh
+      - run: cd web && npx playwright install --with-deps chromium
+      - run: E2E_UI=1 bash scripts/e2e-local.sh
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: .e2e/screens/
       - if: failure()
         run: tail -n 100 .e2e/*.log

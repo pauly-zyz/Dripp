@@ -13,6 +13,8 @@ test("markets lists the series with fixed yield, prices and risk", async ({ page
   // education tooltip
   await page.getByRole("button", { name: "PT" }).first().click();
   await expect(page.getByRole("tooltip")).toContainText("Principal Token");
+  // the open tooltip stays inside the viewport: no horizontal page scroll
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: shot(`markets-${info.project.name}`), fullPage: true });
 });
 
@@ -56,7 +58,7 @@ test.describe("with wallet", () => {
 
     await page.goto("/portfolio");
     await expect(page.getByText(/^PT/).first()).toBeVisible();
-    await expect(page.getByText("Zap → PT")).toBeVisible();
+    await expect(page.getByText("Zap → PT").first()).toBeVisible();
   });
 
   test("portfolio: bob claims his YT dividends", async ({ page }, info) => {

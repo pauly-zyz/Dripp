@@ -66,7 +66,7 @@ sleep 2
 
 cd "$ROOT/contracts"
 log "Uniswap v3 + WETH/USDG/stock"
-forge script test/router/LocalRobinhood.s.sol --rpc-url "$RPC" --broadcast --private-key "$DEPLOYER_KEY" > "$WORK/uniswap.log" 2>&1
+forge script test/router/LocalRobinhood.s.sol --rpc-url "$RPC" --broadcast --slow --private-key "$DEPLOYER_KEY" > "$WORK/uniswap.log" 2>&1
 
 log "Dripp contracts"
 python3 - "$ROOT/contracts/cache/e2e-config.json" <<PY
@@ -88,7 +88,7 @@ cfg = {
 json.dump(cfg, open(sys.argv[1], "w"), indent=2)
 PY
 DRIPP_CONFIG=cache/e2e-config.json DRIPP_DEPLOYMENT_OUT=cache/e2e-deployment.json \
-  forge script script/Deploy.s.sol --rpc-url "$RPC" --broadcast --private-key "$DEPLOYER_KEY" > "$WORK/deploy.log" 2>&1
+  forge script script/Deploy.s.sol --rpc-url "$RPC" --broadcast --slow --private-key "$DEPLOYER_KEY" > "$WORK/deploy.log" 2>&1
 export DRIPP_DEPLOYMENT="$ROOT/contracts/cache/e2e-deployment.json"
 cat "$DRIPP_DEPLOYMENT"; echo
 
@@ -156,3 +156,17 @@ wait_http http://127.0.0.1:8787/health 30
 
 log "E2E tests"
 API_URL=http://127.0.0.1:8787 npx vitest run test/e2e.test.ts
+
+if [[ "${E2E_UI:-0}" == "1" ]]; then
+  log "Web app (Next.js) + Playwright UI tests"
+  cd "$ROOT/web"
+  export NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_API_URL=http://127.0.0.1:8787 NEXT_PUBLIC_CHAIN_ID=31337 NEXT_PUBLIC_RPC_URL="$RPC"
+  npx next build > "$WORK/web-build.log" 2>&1
+  curl -sf http://127.0.0.1:3000 >/dev/null && { echo "port 3000 is busy; stop the old web server first" >&2; exit 1; }
+  setsid npx next start -p 3000 > "$WORK/web.log" 2>&1 &
+  PIDS+=($!)
+  wait_http http://127.0.0.1:3000 60
+  mkdir -p "$WORK/screens"
+  # CHROMIUM_PATH: optional browser binary (e.g. a preinstalled Chromium); otherwise Playwright's own.
+  npx playwright test
+fi

@@ -7,7 +7,8 @@ export const EDU = {
     "Imbal hasil tetap tersirat: keuntungan per tahun jika Anda membeli PT sekarang dan memegangnya sampai jatuh tempo, diukur dalam jumlah saham. Harga saham tetap naik-turun.",
   impliedDividend:
     "Dividen tersirat: dividen per tahun yang diharapkan pasar, dihitung dari harga YT. Jika dividen nyata lebih besar, pemegang YT untung.",
-  realizedDividend: "Dividen terealisasi: dividen yang benar-benar dibayar saham ini dalam 12 bulan terakhir (dikonfirmasi oracle).",
+  realizedDividend:
+    "Dividen terealisasi: dividen yang benar-benar dibayar saham ini dalam 12 bulan terakhir (dikonfirmasi oracle), disetahunkan. Tampil setelah ada data minimal 90 hari.",
   risk: "Skor risiko 0–100 (makin tinggi makin berisiko): kedalaman likuiditas pool PT/YT, waktu ke jatuh tempo, status oracle dividen, dan konsentrasi pemegang.",
   tvl: "Total saham yang tersimpan di vault seri ini.",
   maturity: "Tanggal jatuh tempo: PT bisa ditebus jadi saham, dan YT berhenti menerima dividen.",

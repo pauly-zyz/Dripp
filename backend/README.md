@@ -42,7 +42,7 @@ Satuan *share* = satuan seri (1 PT + 1 YT = 1 share; 1 token saham mentah = `ind
 - **Imbal hasil tetap tersirat** (`impliedFixedApy`) = `(1 / harga_PT)^(1 tahun / sisa waktu) − 1`.
 - **Dividen tersirat** (`impliedDividendApy`) = rumus yang sama dengan `harga_PT = 1 − harga_YT`.
 - **Dividen terealisasi** (`realizedDividendApy`) = pertumbuhan dividend index oracle selama ≤ 1 tahun terakhir,
-  disetahunkan (minimal 7 hari data).
+  disetahunkan (minimal 90 hari data).
 - USD hanya jika `feed` Chainlink diisi untuk saham itu di config/deployment.
 
 ### Skor risiko (0 = paling aman, 100 = paling berisiko)

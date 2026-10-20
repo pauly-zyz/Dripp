@@ -36,7 +36,7 @@ function AmountField({
   decimals: number;
 }) {
   return (
-    <div className="rounded-2xl bg-card-2 p-3">
+    <div className="rounded-2xl border border-transparent bg-card-2 p-3 focus-within:border-muted/50">
       <div className="flex items-center gap-2">
         <input
           inputMode="decimal"
@@ -44,7 +44,7 @@ function AmountField({
           aria-label="Jumlah"
           value={value}
           onChange={(e) => onChange(e.target.value.replace(",", ".").replace(/[^0-9.]/g, ""))}
-          className="min-w-0 flex-1 bg-transparent text-3xl font-semibold tabular-nums outline-none placeholder:text-muted"
+          className="min-w-0 flex-1 bg-transparent text-3xl font-semibold tabular-nums outline-none placeholder:text-muted focus-visible:outline-none"
         />
         {tokens && onToken ? (
           <select

@@ -36,7 +36,7 @@ export default function TransparencyPage() {
               <li key={x.id} className="flex items-center justify-between py-3">
                 <div>
                   <p className="text-sm font-medium">
-                    {x.ticker} · {x.kind === "split" ? `Stock split ${num(x.splitRatio, 2)}:1` : `Dividen ${num(x.dividendPct, 2)}%`}
+                    {x.ticker} · {x.kind === "split" ? `Stock split ${Number(x.splitRatio.toFixed(2))}:1` : `Dividen ${num(x.dividendPct, 2)}%`}
                   </p>
                   <p className="text-xs text-muted">diusulkan oleh <span className="font-mono">{x.proposer.slice(0, 8)}…</span></p>
                 </div>
@@ -59,14 +59,13 @@ export default function TransparencyPage() {
         {protocol.isLoading && <Skeleton className="mt-3 h-20" />}
         {protocol.isError && <ErrorBox error={protocol.error} />}
         <div className="mt-2 overflow-x-auto">
-          <table className="w-full min-w-[480px] text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="text-xs text-muted">
               <tr>
                 <th className="py-2 font-normal">Seri</th>
                 <th className="py-2 font-normal">Saham di vault</th>
                 <th className="py-2 font-normal">PT beredar</th>
-                <th className="py-2 font-normal">Rasio</th>
-                <th className="py-2 font-normal">Vault</th>
+                <th className="py-2 text-right font-normal">Rasio</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -78,11 +77,8 @@ export default function TransparencyPage() {
                   </td>
                   <td className="py-2 tabular-nums">{num(r.reservesShares, 4)}</td>
                   <td className="py-2 tabular-nums">{num(Number(r.ptSupply) / 1e18, 4)}</td>
-                  <td className={`py-2 tabular-nums ${r.backingRatio !== null && r.backingRatio >= 1 ? "text-up" : "text-down"}`}>
-                    {r.backingRatio === null ? "—" : `${num(r.backingRatio, 4)}×`}
-                  </td>
-                  <td className="py-2">
-                    <Addr address={r.vault} />
+                  <td className={`py-2 text-right tabular-nums ${r.backingRatio !== null && r.backingRatio >= 1 ? "text-up" : "text-down"}`}>
+                    {r.backingRatio === null ? "—" : `${r.backingRatio.toFixed(3)}×`}
                   </td>
                 </tr>
               ))}
@@ -124,9 +120,10 @@ export default function TransparencyPage() {
               </li>
             ))}
             {p.reserves.map((r) => (
-              <li key={r.vault} className="flex flex-wrap justify-between gap-3">
+              <li key={r.vault} className="flex flex-wrap justify-between gap-x-3 gap-y-1">
                 <span className="text-muted">{r.series}</span>
-                <span className="flex gap-3">
+                <span className="flex flex-wrap gap-3">
+                  <Addr address={r.vault} label="vault" />
                   <Addr address={r.pt} label={`p${r.series}`} />
                   <Addr address={r.yt} label={`y${r.series}`} />
                 </span>

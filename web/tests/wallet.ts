@@ -8,6 +8,9 @@ export async function injectWallet(page: Page, account: string, rpc = process.en
   await page.addInitScript(
     ({ account, rpc }) => {
       let id = 1;
+      // Like a real wallet, the site permission survives page loads.
+      const KEY = "mock-wallet-authorized";
+      let authorized = localStorage.getItem(KEY) === "1";
       const listeners: Record<string, ((...a: unknown[]) => void)[]> = {};
       const call = async (method: string, params: unknown[] = []) => {
         const r = await fetch(rpc, {
@@ -23,9 +26,14 @@ export async function injectWallet(page: Page, account: string, rpc = process.en
         isMetaMask: false,
         request: async ({ method, params }: { method: string; params?: unknown[] }) => {
           switch (method) {
+            // Like a real wallet: no accounts until the site asked for permission.
             case "eth_requestAccounts":
-            case "eth_accounts":
+              authorized = true;
+              localStorage.setItem(KEY, "1");
+              (listeners.accountsChanged ?? []).forEach((fn) => fn([account]));
               return [account];
+            case "eth_accounts":
+              return authorized ? [account] : [];
             case "wallet_switchEthereumChain":
             case "wallet_addEthereumChain":
               return null;
@@ -53,9 +61,9 @@ export const ALICE = "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc";
 export const BOB = "0x976EA74026E726554dB657fA54763abd0C3a0aa9";
 export const DAVE = "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f"; // anvil #8, fresh account for UI buys
 
-/** Opens the RainbowKit modal and connects the injected wallet. */
+/** Opens the RainbowKit modal, picks the injected wallet and waits until the header shows the account. */
 export async function connect(page: Page) {
-  await page.getByRole("button", { name: /connect wallet/i }).first().click();
-  await page.getByText(/browser wallet|injected/i).first().click();
-  await page.getByRole("dialog").waitFor({ state: "detached" }).catch(() => {});
+  await page.getByTestId("rk-connect-button").first().click();
+  await page.getByRole("dialog").getByText(/browser wallet|injected/i).first().click();
+  await page.getByTestId("rk-account-button").waitFor();
 }

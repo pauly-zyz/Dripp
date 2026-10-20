@@ -20,7 +20,8 @@ const what = (kind: string, dividendPct: number | null, splitRatio: number | nul
         ? `Dividen ${dividendPct === null ? "" : `${num(dividendPct, 2)}%`}`
         : "Perubahan multiplier";
 
-const splitLabel = (r: number | null) => (r === null ? "" : r >= 1 ? `${num(r, 2)}:1` : `1:${num(1 / r, 2)}`);
+const ratio = (x: number) => String(Number(x.toFixed(2)));
+const splitLabel = (r: number | null) => (r === null ? "" : r >= 1 ? `${ratio(r)}:1` : `1:${ratio(1 / r)}`);
 
 const dot: Record<string, string> = {
   scheduled: "bg-warn",

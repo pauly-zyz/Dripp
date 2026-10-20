@@ -7,7 +7,18 @@ import { shortAddr } from "@/lib/format";
 /** Small "i" button with an education popover (tap on mobile, hover/focus on desktop). */
 export function InfoTip({ text, label = "Info" }: { text: string; label?: string }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top: number; above: boolean } | null>(null);
   const ref = useRef<HTMLSpanElement>(null);
+  const hovered = useRef(false);
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    // Fixed position, clamped inside the viewport (a 16px gutter on phones).
+    const r = ref.current.getBoundingClientRect();
+    const width = Math.min(256, window.innerWidth - 32);
+    const left = Math.min(Math.max(16, r.left + r.width / 2 - width / 2), window.innerWidth - 16 - width);
+    const above = r.top > 160;
+    setPos({ left, top: above ? r.top - 8 : r.bottom + 8, above });
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
@@ -23,18 +34,32 @@ export function InfoTip({ text, label = "Info" }: { text: string; label?: string
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          setOpen((o) => !o);
+          // A tap fires pointerenter too; only toggle closed if it was already open before this interaction.
+          const viaHover = hovered.current; // read now: the state updater runs later
+          hovered.current = false;
+          setOpen((o) => (viaHover ? true : !o));
         }}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
+        onPointerEnter={(e) => {
+          if (e.pointerType !== "mouse") return;
+          hovered.current = true;
+          setOpen(true);
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType !== "mouse") return;
+          hovered.current = false;
+          setOpen(false);
+        }}
         className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-muted/60 text-[10px] leading-none text-muted hover:border-fg hover:text-fg"
       >
         i
       </button>
-      {open && (
+      {open && pos && (
         <span
           role="tooltip"
-          className="absolute bottom-6 left-1/2 z-50 w-64 -translate-x-1/2 rounded-xl border border-line bg-card-2 p-3 text-left text-xs font-normal leading-relaxed text-fg shadow-2xl"
+          style={{ left: pos.left, top: pos.top, width: Math.min(256, window.innerWidth - 32) }}
+          className={`fixed z-50 whitespace-normal rounded-xl border border-line bg-card-2 p-3 text-left text-xs font-normal leading-relaxed text-fg shadow-2xl ${
+            pos.above ? "-translate-y-full" : ""
+          }`}
         >
           {text}
         </span>

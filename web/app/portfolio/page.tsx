@@ -92,7 +92,8 @@ export default function PortfolioPage() {
               <li key={c.vault} className="flex justify-between py-2">
                 <span>{c.series}</span>
                 <span className="tabular-nums">
-                  {num(wad(c.net), 6)} {c.ticker} <span className="text-xs text-muted">(fee {num(wad(c.fee), 6)})</span>
+                  {num(c.netShares, 6)} saham{" "}
+                  <span className="text-xs text-muted">(setelah fee {num(wad(c.fee), 6)} token {c.ticker})</span>
                 </span>
               </li>
             ))}

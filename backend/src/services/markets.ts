@@ -239,7 +239,8 @@ async function realizedApy(deps: Deps, stock: StockRow, now: number): Promise<nu
   const indexThen = before.length
     ? before[before.length - 1]!.dividendIndexAfter
     : (confirmed[0]?.dividendIndexBefore ?? stock.dividendIndex);
-  return realizedDividendApy(indexThen, stock.dividendIndex, now - start);
+  // Annualizing a few weeks of history overstates the yield: require 90 days.
+  return realizedDividendApy(indexThen, stock.dividendIndex, now - start, 90 * DAY);
 }
 
 async function volume24h(deps: Deps, vault: Address, now: number): Promise<number> {
