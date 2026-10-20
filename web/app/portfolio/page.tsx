@@ -7,7 +7,8 @@ import { DrippVaultAbi } from "@dripp/shared/browser";
 import { Button, Card, Empty, ErrorBox, InfoTip, Skeleton } from "@/components/ui";
 import { txUrl } from "@/lib/chain";
 import { EDU } from "@/lib/edu";
-import { dateShort, num, usd, wad } from "@/lib/format";
+import { dateShort, num, signedPct, usd, wad } from "@/lib/format";
+import { ReferralCard } from "@/components/ReferralCard";
 import { usePortfolio } from "@/lib/hooks";
 import { useTx } from "@/lib/tx";
 
@@ -57,6 +58,9 @@ export default function PortfolioPage() {
     });
 
   const totalValueShares = d.positions.reduce((a, x) => a + (x.valueShares ?? 0), 0);
+  const pnlTotal = d.pnl.reduce((a, x) => a + x.pnlShares, 0);
+  const costTotal = d.pnl.reduce((a, x) => a + x.costShares, 0);
+  const pnlTone = pnlTotal >= 0 ? "text-up" : "text-down";
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -64,6 +68,14 @@ export default function PortfolioPage() {
         <h1 className="text-3xl font-bold tracking-tight">Portofolio</h1>
         <p className="mt-2 text-4xl font-bold tabular-nums">{d.totals.valueUsd !== null ? usd(d.totals.valueUsd) : `${num(totalValueShares, 4)} saham`}</p>
         <p className="text-sm text-muted">Nilai posisi PT/YT (harga pool)</p>
+        {d.pnl.length > 0 && (
+          <p className={`mt-1 text-sm font-semibold tabular-nums ${pnlTone}`}>
+            {pnlTotal >= 0 ? "+" : ""}
+            {num(pnlTotal, 4)} saham {costTotal > 0 && `(${signedPct(pnlTotal / costTotal)})`}{" "}
+            <span className="font-normal text-muted">PnL total</span>
+            <InfoTip text="PnL = nilai posisi sekarang (termasuk dividen yang belum diklaim) + hasil (merge, tebus, jual, dividen diklaim) − modal (split, beli), dalam saham. PT/YT yang diterima lewat transfer dihitung tanpa modal." label="PnL" />
+          </p>
+        )}
       </div>
 
       {matured.length > 0 && (
@@ -129,6 +141,31 @@ export default function PortfolioPage() {
           </ul>
         )}
       </section>
+
+      {d.pnl.length > 0 && (
+        <section>
+          <h2 className="mb-2 font-semibold">PnL per seri</h2>
+          <ul className="divide-y divide-line/60 text-sm">
+            {d.pnl.map((x) => (
+              <li key={x.vault} className="flex items-center justify-between py-2.5">
+                <div>
+                  <p className="font-medium">{x.series}</p>
+                  <p className="text-xs text-muted">
+                    modal {num(x.costShares, 4)} · hasil {num(x.proceedsShares, 4)} · nilai {num(x.valueShares, 4)} saham
+                  </p>
+                </div>
+                <p className={`text-right font-semibold tabular-nums ${x.pnlShares >= 0 ? "text-up" : "text-down"}`}>
+                  {x.pnlShares >= 0 ? "+" : ""}
+                  {num(x.pnlShares, 4)}
+                  <span className="block text-xs font-normal">{x.pnlPct === null ? "" : signedPct(x.pnlPct)}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <ReferralCard address={address} />
 
       <section>
         <h2 className="mb-2 font-semibold">Aktivitas</h2>

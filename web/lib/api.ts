@@ -143,10 +143,22 @@ export interface Position {
   redeemable: boolean;
 }
 
+export interface SeriesPnl {
+  series: string;
+  vault: Address;
+  costShares: number;
+  proceedsShares: number;
+  valueShares: number;
+  pnlShares: number;
+  pnlPct: number | null;
+  pnlUsd: number | null;
+}
+
 export interface Portfolio {
   account: Address;
   positions: Position[];
   claimable: Claimable[];
+  pnl: SeriesPnl[];
   totals: { valueUsd: number | null; claimableUsd: number | null };
   maturityReminders: { series: string | null; maturity: string | null; matured: boolean }[];
   activity: { type: string; vault: Address; timestamp: number; time: string; txHash: Hex; [k: string]: unknown }[];

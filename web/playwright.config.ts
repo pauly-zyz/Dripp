@@ -15,6 +15,8 @@ export default defineConfig({
     baseURL: process.env.WEB_URL ?? "http://127.0.0.1:3000",
     launchOptions: process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
     trace: "retain-on-failure",
+    // a local HTTPS deployment (Caddy internal CA) when WEB_URL is https://localhost
+    ignoreHTTPSErrors: (process.env.WEB_URL ?? "").startsWith("https://localhost"),
   },
   projects: [
     { name: "mobile", use: { ...devices["Pixel 7"], browserName: "chromium" } },

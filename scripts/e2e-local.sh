@@ -41,6 +41,12 @@ wait_http() { # url, seconds
   echo "timeout waiting for $1" >&2; return 1
 }
 
+for port in "${ANVIL_PORT:-8545}" 42069 8787 3000; do
+  if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+    echo "port $port is already in use (a previous run with E2E_KEEP=1?); stop it first" >&2; exit 1
+  fi
+done
+
 log "Postgres / Redis"
 if [[ "$LOCAL_PG" == "1" ]]; then
   if ! pg_isready -h 127.0.0.1 -q; then
@@ -60,7 +66,7 @@ log "anvil"
 if curl -sf -X POST -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId"}' "$RPC" >/dev/null; then
   echo "something is already listening on $RPC; stop it first" >&2; exit 1
 fi
-setsid anvil --port "${ANVIL_PORT:-8545}" --silent > "$WORK/anvil.log" 2>&1 &
+setsid anvil --host "${ANVIL_HOST:-127.0.0.1}" --port "${ANVIL_PORT:-8545}" --silent > "$WORK/anvil.log" 2>&1 &
 PIDS+=($!)
 sleep 2
 

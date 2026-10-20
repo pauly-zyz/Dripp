@@ -122,6 +122,13 @@ describe("users", () => {
     expect(p.claimable).toHaveLength(0);
     const types = p.activity.map((a: any) => a.type);
     for (const t of ["claim", "merge", "split", "zap:PT", "buy:PT"]) expect(types).toContain(t);
+
+    // PnL: cost = 50 shares split at index 1.0 + stock paid for PT in the pool (index 1.0)
+    const buy = p.activity.find((a: any) => a.type === "buy:PT");
+    const pnl = p.pnl.find((x: any) => x.series === "AAPL-MAR27");
+    expect(pnl.costShares).toBeCloseTo(50 + Number(buy.stockAmount) / 1e18, 9);
+    expect(pnl.proceedsShares).toBeGreaterThan(10); // merge 10 PT+YT + claimed dividend
+    expect(pnl.pnlShares).toBeCloseTo(pnl.valueShares + pnl.proceedsShares - pnl.costShares, 9);
     expect((await fetch(`${API}/users/0x1234/portfolio`)).status).toBe(400);
   });
 });

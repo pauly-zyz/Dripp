@@ -14,11 +14,13 @@ import { txUrl } from "@/lib/chain";
 import { EDU } from "@/lib/edu";
 import { dateShort, daysLeft, num, pct, shortAddr, wad } from "@/lib/format";
 import { useCalendar, useMarket } from "@/lib/hooks";
+import { impliedDividendApy, impliedFixedApy } from "@dripp/shared/browser";
 
 export default function SeriesPage() {
   const { series } = useParams<{ series: string }>();
   const q = useMarket(series);
   const [side, setSide] = useState<"PT" | "YT">("PT");
+  const [view, setView] = useState<"price" | "yield">("price");
   const m = q.data;
   const calendar = useCalendar(m?.stock.ticker ?? undefined);
 
@@ -26,7 +28,17 @@ export default function SeriesPage() {
   if (q.isError || !m) return <ErrorBox error={q.error} />;
 
   const price = side === "PT" ? m.ptPrice : m.ytPrice;
-  const history = m.priceHistory[side];
+  // implied yield at each trade: PT -> fixed APY, YT -> implied dividend (PT = 1 - YT)
+  const yieldAt = (p: { t: number; price: number }) =>
+    side === "PT" ? impliedFixedApy(p.price, m.maturity - p.t) : impliedDividendApy(p.price, m.maturity - p.t);
+  const history =
+    view === "price"
+      ? m.priceHistory[side]
+      : m.priceHistory[side].flatMap((p) => {
+          const y = yieldAt(p);
+          return y === null ? [] : [{ t: p.t, price: y }];
+        });
+  const headline = view === "price" ? num(price.shares, 4) : pct(side === "PT" ? m.impliedFixedApy : m.impliedDividendApy);
   const ticker = m.stock.ticker ?? "";
 
   return (
@@ -35,7 +47,7 @@ export default function SeriesPage() {
         <IconBack width={18} height={18} /> Markets
       </Link>
 
-      <div className="mt-3 grid gap-6 md:grid-cols-[1fr_380px]">
+      <div className="mt-3 grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-6">
           <header className="flex items-center gap-3">
             <TickerAvatar ticker={ticker} />
@@ -51,14 +63,20 @@ export default function SeriesPage() {
           <section>
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-sm text-muted">Harga {side} (dalam saham)</p>
-                <p className="text-4xl font-bold tabular-nums">{num(price.shares, 4)}</p>
-                {price.usd !== null && <p className="text-sm text-muted">${num(price.usd, 2)}</p>}
+                <p className="flex items-center text-sm text-muted">
+                  {view === "price" ? `Harga ${side} (dalam saham)` : side === "PT" ? "Imbal hasil tetap tersirat" : "Dividen tersirat"}
+                  {view === "yield" && <InfoTip text={side === "PT" ? EDU.fixedApy : EDU.impliedDividend} label="Imbal hasil" />}
+                </p>
+                <p className="text-4xl font-bold tabular-nums">{headline}</p>
+                {view === "price" && price.usd !== null && <p className="text-sm text-muted">${num(price.usd, 2)}</p>}
               </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2">
               <Segmented options={[{ value: "PT", label: "PT" }, { value: "YT", label: "YT" }]} value={side} onChange={setSide} size="sm" />
+              <Segmented options={[{ value: "price", label: "Harga" }, { value: "yield", label: "Imbal hasil" }]} value={view} onChange={setView} size="sm" />
             </div>
             <div className="mt-3">
-              <PriceChart points={history} label={`Riwayat harga ${side}`} />
+              <PriceChart points={history} label={view === "price" ? `Riwayat harga ${side}` : `Riwayat imbal hasil ${side}`} />
             </div>
           </section>
 
@@ -119,7 +137,7 @@ export default function SeriesPage() {
           </Card>
         </div>
 
-        <aside className="md:sticky md:top-20 md:self-start">
+        <aside className="min-w-0 md:sticky md:top-20 md:self-start">
           <Card>
             <TradePanel market={m} initialMode={m.status === "matured" ? "redeem" : "buy"} />
           </Card>

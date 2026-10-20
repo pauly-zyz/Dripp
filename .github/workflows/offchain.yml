@@ -1,9 +1,9 @@
 name: offchain
 on:
   push:
-    paths: ["shared/**", "indexer/**", "backend/**", "web/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", ".github/workflows/offchain.yml"]
+    paths: ["shared/**", "indexer/**", "backend/**", "web/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", "Dockerfile", "docker-compose.yml", ".github/workflows/offchain.yml"]
   pull_request:
-    paths: ["shared/**", "indexer/**", "backend/**", "web/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", ".github/workflows/offchain.yml"]
+    paths: ["shared/**", "indexer/**", "backend/**", "web/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", "Dockerfile", "docker-compose.yml", ".github/workflows/offchain.yml"]
 jobs:
   unit:
     runs-on: ubuntu-latest
@@ -17,6 +17,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+
+  # production images (Dockerfile targets used by docker-compose.yml)
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cp .env.production.example .env
+          echo "DRIPP_DEPLOYMENT_FILE=./.env" >> .env   # any existing file; only the build is checked here
+          docker compose config -q
+          docker compose build indexer api keeper web
 
   # anvil + contracts + Ponder + keeper + API with assertions (scripts/e2e-local.sh)
   e2e:

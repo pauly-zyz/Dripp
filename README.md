@@ -22,4 +22,6 @@ pnpm typecheck && pnpm test   # semua paket TypeScript
 pnpm e2e                      # anvil + kontrak + Ponder + keeper + API, dengan assertion (butuh Postgres, Redis, Foundry)
 E2E_UI=1 pnpm e2e             # + build web dan test UI Playwright (mobile + desktop)
 ```
+Deploy ke Robinhood Chain + server (Docker Compose, HTTPS): [`DEPLOY.md`](DEPLOY.md).
+
 Lihat [`contracts/README.md`](contracts/README.md) untuk detail kontrak dan konfigurasi alamat Stock Token.

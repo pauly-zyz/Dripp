@@ -1,0 +1,87 @@
+# Production stack for Dripp. Copy .env.production.example to .env, fill it in, then:
+#   docker compose up -d --build
+# See DEPLOY.md.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dripp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: dripp
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dripp -d dripp"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    volumes: [redisdata:/data]
+
+  indexer:
+    build: { context: ., target: indexer }
+    restart: unless-stopped
+    depends_on: { postgres: { condition: service_healthy } }
+    environment: &chain
+      DATABASE_URL: postgresql://dripp:${POSTGRES_PASSWORD}@postgres:5432/dripp
+      PONDER_RPC_URL: ${RPC_URL:?set RPC_URL}
+      RPC_URL: ${RPC_URL}
+      DRIPP_DEPLOYMENT: /deployment.json
+      PONDER_VIEWS_SCHEMA: dripp
+    volumes:
+      - ${DRIPP_DEPLOYMENT_FILE:?set DRIPP_DEPLOYMENT_FILE}:/deployment.json:ro
+
+  api:
+    build: { context: ., target: api }
+    restart: unless-stopped
+    depends_on: [indexer, redis]
+    environment:
+      <<: *chain
+      PORT: "8080"
+      REDIS_URL: redis://redis:6379
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY}
+      COMMENT_BANNED_WORDS: ${COMMENT_BANNED_WORDS:-}
+    volumes:
+      - ${DRIPP_DEPLOYMENT_FILE}:/deployment.json:ro
+
+  keeper:
+    build: { context: ., target: keeper }
+    restart: unless-stopped
+    depends_on: [indexer]
+    environment:
+      <<: *chain
+      KEEPER_PRIVATE_KEY: ${KEEPER_PRIVATE_KEY:-}
+      KEEPER_INTERVAL_MS: ${KEEPER_INTERVAL_MS:-60000}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+    volumes:
+      - ${DRIPP_DEPLOYMENT_FILE}:/deployment.json:ro
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        NEXT_PUBLIC_API_URL: https://${DOMAIN:?set DOMAIN}/api
+        NEXT_PUBLIC_CHAIN_ID: ${CHAIN_ID:-4663}
+        NEXT_PUBLIC_RPC_URL: ${PUBLIC_RPC_URL:-}
+        NEXT_PUBLIC_WC_PROJECT_ID: ${WC_PROJECT_ID:-}
+    restart: unless-stopped
+    depends_on: [api]
+
+  # HTTPS for https://$DOMAIN (certificates from Let's Encrypt); /api/* -> api, rest -> web
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment: { DOMAIN: "${DOMAIN}" }
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [web, api]
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:

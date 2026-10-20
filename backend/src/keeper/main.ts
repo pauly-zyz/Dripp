@@ -34,8 +34,13 @@ async function chainFor() {
 async function tokens(): Promise<Address[]> {
   const set = new Set<Address>(deployment.stockTokens.map((t) => t.address));
   if (db) {
-    const rows = await db.select().from(ponder.stockToken).where(isNotNull(ponder.stockToken.registeredAt));
-    rows.forEach((r) => set.add(r.address));
+    try {
+      const rows = await db.select().from(ponder.stockToken).where(isNotNull(ponder.stockToken.registeredAt));
+      rows.forEach((r) => set.add(r.address));
+    } catch (e) {
+      // indexer not ready yet (e.g. first start): the deployment file's tokens are enough
+      log("indexer tokens unavailable", { error: String(e).split("\n")[0] });
+    }
   }
   return [...set];
 }
@@ -43,6 +48,14 @@ async function tokens(): Promise<Address[]> {
 /** Latest unused team announcement with an ex-date between 14 days ago and 2 days ahead. */
 async function findAnnouncement(token: Address, now: number): Promise<Announcement | null> {
   if (!db) return null;
+  try {
+    return await queryAnnouncement(db, token, now);
+  } catch {
+    return null; // backend tables not migrated yet: fall back to the heuristic
+  }
+}
+
+async function queryAnnouncement(db: NonNullable<typeof database>["db"], token: Address, now: number): Promise<Announcement | null> {
   const ca = app.corporateActions;
   const [row] = await db
     .select()

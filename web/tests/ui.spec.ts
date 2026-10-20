@@ -40,6 +40,9 @@ test("series detail shows chart, risk breakdown, calendar and comments", async (
   await page.goto("/market/AAPL-MAR27");
   await expect(page.getByRole("heading", { name: "AAPL-MAR27" })).toBeVisible();
   await expect(page.getByRole("img", { name: /Riwayat harga PT/ })).toBeVisible();
+  await page.getByRole("tab", { name: "Imbal hasil" }).click();
+  await expect(page.getByRole("img", { name: /Riwayat imbal hasil PT/ })).toBeVisible();
+  await expect(page.getByText("Imbal hasil tetap tersirat").first()).toBeVisible();
   await expect(page.getByText("Likuiditas pool PT/YT")).toBeVisible();
   await expect(page.getByText(/Dividen 1(\.00)?%/).first()).toBeVisible();
   await expect(page.getByText(/Stock split 2(\.00)?:1/).first()).toBeVisible();
@@ -57,6 +60,16 @@ test("transparency shows oracle history, reserves and contracts", async ({ page 
   await expect(page.getByText("DividendOracle")).toBeVisible();
   await expect(page.getByText("5%")).toBeVisible();
   await page.screenshot({ path: shot(`transparency-${info.project.name}`), fullPage: true });
+});
+
+test("no page scrolls sideways", async ({ page }) => {
+  for (const path of ["/", "/earn", "/market/AAPL-MAR27", "/portfolio", "/transparency"]) {
+    await page.goto(path);
+    await page.waitForLoadState("networkidle");
+    const [scroll, viewport] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+    expect(scroll, `${path} is ${scroll}px wide in a ${viewport}px viewport`).toBeLessThanOrEqual(viewport);
+    expect(viewport, `${path} zoomed out to fit wide content`).toBe(page.viewportSize()!.width);
+  }
 });
 
 test.describe("with wallet", () => {
@@ -81,6 +94,8 @@ test.describe("with wallet", () => {
 
     await page.goto("/portfolio");
     await expect(page.getByText(/^PT/).first()).toBeVisible();
+    await expect(page.getByText("PnL total")).toBeVisible();
+    await expect(page.getByLabel("Link referral")).toHaveValue(/\?ref=0x23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f/);
     await expect(page.getByText("Zap → PT").first()).toBeVisible();
   });
 

@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/.ponder
+**/generated
+.e2e
+.git
+contracts
+web/tests
+**/*.log
