@@ -3,6 +3,24 @@ import { ALICE, BOB, DAVE, connect, injectWallet } from "./wallet";
 
 const shot = (name: string) => `../.e2e/screens/${name}.png`;
 
+const RPC = process.env.RPC_URL ?? "http://127.0.0.1:8545";
+const rpc = async (method: string, params: unknown[]) =>
+  (await (await fetch(RPC, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) })).json()).result;
+
+/** Trace of the last transaction sent by `from` (anvil debug API), to explain a revert. */
+async function lastTxDiagnostics(from: string) {
+  const latest = await rpc("eth_getBlockByNumber", ["latest", true]);
+  for (let n = Number(latest.number); n > Number(latest.number) - 10; n--) {
+    const b = await rpc("eth_getBlockByNumber", ["0x" + n.toString(16), true]);
+    const tx = b.transactions.find((t: { from: string }) => t.from.toLowerCase() === from.toLowerCase());
+    if (!tx) continue;
+    const trace = await rpc("debug_traceTransaction", [tx.hash, { tracer: "callTracer" }]);
+    const deadline = tx.input.length > 10 ? BigInt("0x" + tx.input.slice(10 + 64 * 8, 10 + 64 * 9)) : null;
+    return { block: n, blockTime: Number(b.timestamp), gas: tx.gas, gasUsed: trace?.gasUsed, error: trace?.error, revertReason: trace?.revertReason, output: trace?.output?.slice(0, 74), deadlineWord8: deadline?.toString() };
+  }
+  return null;
+}
+
 test("markets lists the series with fixed yield, prices and risk", async ({ page }, info) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Markets" })).toBeVisible();
@@ -57,7 +75,9 @@ test.describe("with wallet", () => {
     // wait for the outcome toast; on failure the assertion message shows the wallet/contract error
     const outcome = page.getByRole("status").filter({ hasText: /Beli PT (berhasil|gagal)/ }).first();
     await expect(outcome).toBeVisible({ timeout: 60_000 });
-    expect(await outcome.innerText()).toContain("Beli PT berhasil");
+    const text = await outcome.innerText();
+    if (!text.includes("berhasil")) console.log("DIAGNOSTICS", JSON.stringify(await lastTxDiagnostics(DAVE)));
+    expect(text).toContain("Beli PT berhasil");
 
     await page.goto("/portfolio");
     await expect(page.getByText(/^PT/).first()).toBeVisible();
