@@ -33,9 +33,10 @@ const ERROR_TEXT: Record<string, string> = {
 const ERROR_ABI = [...DrippRouterAbi, ...DrippVaultAbi, ...erc20Abi];
 
 /** Replays a reverted transaction one block earlier to recover a readable revert reason. */
-async function revertReason(client: PublicClient, hash: Hash, blockNumber: bigint): Promise<string> {
+async function revertReason(client: PublicClient, hash: Hash, blockNumber: bigint, gasUsed: bigint): Promise<string> {
   try {
     const tx = await client.getTransaction({ hash });
+    if (gasUsed * 100n >= tx.gas * 95n) return "kehabisan gas (coba lagi)";
     await client.call({ account: tx.from, to: tx.to, data: tx.input, value: tx.value, gas: tx.gas, blockNumber: blockNumber - 1n });
     return "tidak diketahui";
   } catch (e) {
@@ -84,12 +85,19 @@ export function useTx() {
       const wait = async (hash: Hash) => {
         const r = await client.waitForTransactionReceipt({ hash });
         if (r.status !== "success") {
-          throw new Error(`Transaksi gagal: ${await revertReason(client, hash, r.blockNumber)} (${hash.slice(0, 10)}…)`);
+          throw new Error(`Transaksi gagal: ${await revertReason(client, hash, r.blockNumber, r.gasUsed)} (${hash.slice(0, 10)}…)`);
         }
       };
+      // Exact gas estimates can run out of gas in nested calls (63/64 rule: router -> Uniswap -> token
+      // callbacks), so every write gets the estimate plus a 25% margin.
+      const write = (async (args: Parameters<Write>[0]) => {
+        const a = args as unknown as Parameters<typeof client.estimateContractGas>[0];
+        const estimate = await client.estimateContractGas({ ...a, account: address });
+        return writeContractAsync({ ...args, gas: (estimate * 125n) / 100n } as Parameters<Write>[0]);
+      }) as Write;
       const ctx: TxContext = {
         account: address,
-        write: writeContractAsync,
+        write,
         ensureAllowance: async (token, spender, amount) => {
           const allowance = await client.readContract({
             abi: erc20Abi,
@@ -99,7 +107,7 @@ export function useTx() {
           });
           if (allowance >= amount) return;
           setBusy("Approve");
-          await wait(await writeContractAsync({ abi: erc20Abi, address: token, functionName: "approve", args: [spender, amount] }));
+          await wait(await write({ abi: erc20Abi, address: token, functionName: "approve", args: [spender, amount] }));
           setBusy(label);
         },
         deadline: async (seconds = 1200) => (await client.getBlock()).timestamp + BigInt(seconds),
