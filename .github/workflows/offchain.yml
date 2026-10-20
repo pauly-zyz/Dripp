@@ -1,9 +1,9 @@
 name: offchain
 on:
   push:
-    paths: ["shared/**", "indexer/**", "backend/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", ".github/workflows/offchain.yml"]
+    paths: ["shared/**", "indexer/**", "backend/**", "web/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", ".github/workflows/offchain.yml"]
   pull_request:
-    paths: ["shared/**", "indexer/**", "backend/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", ".github/workflows/offchain.yml"]
+    paths: ["shared/**", "indexer/**", "backend/**", "web/**", "contracts/**", "scripts/**", "pnpm-lock.yaml", ".github/workflows/offchain.yml"]
 jobs:
   unit:
     runs-on: ubuntu-latest
