@@ -53,7 +53,10 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots
-          path: .e2e/screens/
+          name: e2e-ui
+          path: |
+            .e2e/screens/
+            .e2e/playwright/
+            .e2e/*.log
       - if: failure()
         run: tail -n 100 .e2e/*.log

@@ -54,7 +54,10 @@ test.describe("with wallet", () => {
     await expect(buy).toBeEnabled();
     await page.screenshot({ path: shot(`earn-${info.project.name}`), fullPage: true });
     await buy.click();
-    await expect(page.getByText("Beli PT berhasil")).toBeVisible({ timeout: 60_000 });
+    // wait for the outcome toast; on failure the assertion message shows the wallet/contract error
+    const outcome = page.getByRole("status").filter({ hasText: /Beli PT (berhasil|gagal)/ }).first();
+    await expect(outcome).toBeVisible({ timeout: 60_000 });
+    expect(await outcome.innerText()).toContain("Beli PT berhasil");
 
     await page.goto("/portfolio");
     await expect(page.getByText(/^PT/).first()).toBeVisible();
@@ -70,7 +73,9 @@ test.describe("with wallet", () => {
     await expect(claim).toBeEnabled();
     await page.screenshot({ path: shot(`portfolio-${info.project.name}`), fullPage: true });
     await claim.click();
-    await expect(page.getByText("Klaim semua dividen berhasil")).toBeVisible({ timeout: 60_000 });
+    const outcome = page.getByRole("status").filter({ hasText: /Klaim semua dividen (berhasil|gagal)/ }).first();
+    await expect(outcome).toBeVisible({ timeout: 60_000 });
+    expect(await outcome.innerText()).toContain("berhasil");
     await expect(claim).toBeDisabled();
   });
 
