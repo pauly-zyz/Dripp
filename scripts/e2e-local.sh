@@ -155,7 +155,7 @@ PIDS+=($!)
 wait_http http://127.0.0.1:8787/health 30
 
 log "E2E tests"
-API_URL=http://127.0.0.1:8787 npx vitest run test/e2e.test.ts
+API_URL=http://127.0.0.1:8787 npx vitest run test/e2e.test.ts --testTimeout=30000
 
 if [[ "${E2E_UI:-0}" == "1" ]]; then
   log "Web app (Next.js) + Playwright UI tests"

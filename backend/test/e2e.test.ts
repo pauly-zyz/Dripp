@@ -205,8 +205,9 @@ describe("websocket", () => {
 
 describe("protocol and quotes", () => {
   const rpc = http(process.env.RPC_URL ?? "http://127.0.0.1:8545");
-  const pub = createPublicClient({ chain: foundry, transport: rpc });
-  const wallet = createWalletClient({ account: carol, chain: foundry, transport: rpc });
+  // on-chain steps: poll receipts quickly (viem's default is 4s)
+  const pub = createPublicClient({ chain: foundry, transport: rpc, pollingInterval: 250 });
+  const wallet = createWalletClient({ account: carol, chain: foundry, transport: rpc, pollingInterval: 250 });
   const balance = (token: Address) =>
     pub.readContract({ abi: erc20Abi, address: token, functionName: "balanceOf", args: [carol.address] });
 
