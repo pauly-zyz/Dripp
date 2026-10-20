@@ -2,7 +2,8 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { erc20Abi, type Address, type Hash } from "viem";
+import { BaseError, ContractFunctionRevertedError, decodeErrorResult, erc20Abi, type Address, type Hash, type Hex, type PublicClient } from "viem";
+import { DrippRouterAbi, DrippVaultAbi } from "@dripp/shared/browser";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
 import { useToast } from "@/components/Toast";
 import { chain, txUrl } from "./chain";
@@ -16,6 +17,44 @@ export interface TxContext {
   ensureAllowance: (token: Address, spender: Address, amount: bigint) => Promise<void>;
   /** Chain time + `seconds` (local test chains can run ahead of the wall clock). */
   deadline: (seconds?: number) => Promise<bigint>;
+}
+
+const ERROR_TEXT: Record<string, string> = {
+  InsufficientOutput: "Harga bergerak melebihi batas slippage",
+  Expired: "Transaksi kedaluwarsa (deadline lewat)",
+  DepositCapExceeded: "Batas deposit seri sudah penuh",
+  EnforcedPause: "Seri sedang di-pause",
+  Matured: "Seri sudah jatuh tempo",
+  NotMatured: "Seri belum jatuh tempo",
+  UnknownVault: "Seri tidak dikenal",
+  BadPath: "Rute swap tidak valid",
+};
+
+const ERROR_ABI = [...DrippRouterAbi, ...DrippVaultAbi, ...erc20Abi];
+
+/** Replays a reverted transaction one block earlier to recover a readable revert reason. */
+async function revertReason(client: PublicClient, hash: Hash, blockNumber: bigint): Promise<string> {
+  try {
+    const tx = await client.getTransaction({ hash });
+    await client.call({ account: tx.from, to: tx.to, data: tx.input, value: tx.value, gas: tx.gas, blockNumber: blockNumber - 1n });
+    return "tidak diketahui";
+  } catch (e) {
+    const data = e instanceof BaseError ? ((e.walk((x) => "data" in (x as object)) as { data?: Hex } | null)?.data ?? null) : null;
+    if (typeof data === "string" && data.length >= 10) {
+      try {
+        const { errorName } = decodeErrorResult({ abi: ERROR_ABI, data });
+        return ERROR_TEXT[errorName] ?? errorName;
+      } catch {
+        /* unknown selector */
+      }
+    }
+    if (e instanceof BaseError) {
+      const reverted = e.walk((x) => x instanceof ContractFunctionRevertedError);
+      if (reverted instanceof ContractFunctionRevertedError && reverted.reason) return reverted.reason;
+      return e.shortMessage;
+    }
+    return String(e);
+  }
 }
 
 const shortError = (e: unknown) => {
@@ -44,7 +83,9 @@ export function useTx() {
       if (chainId !== chain.id) await switchChainAsync({ chainId: chain.id });
       const wait = async (hash: Hash) => {
         const r = await client.waitForTransactionReceipt({ hash });
-        if (r.status !== "success") throw new Error(`Transaksi gagal (${hash})`);
+        if (r.status !== "success") {
+          throw new Error(`Transaksi gagal: ${await revertReason(client, hash, r.blockNumber)} (${hash.slice(0, 10)}…)`);
+        }
       };
       const ctx: TxContext = {
         account: address,
