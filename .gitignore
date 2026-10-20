@@ -18,3 +18,4 @@ web/.next/
 web/next-env.d.ts
 web/test-results/
 .env
+!.env.production.example
