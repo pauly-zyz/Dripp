@@ -12,6 +12,8 @@ import { getProposals } from "./services/oracle.ts";
 import { getLeaderboard, getReferralInfo } from "./services/leaderboard.ts";
 import { registerReferral } from "./services/referrals.ts";
 import { banWallet, hideComment, listComments, postComment } from "./services/comments.ts";
+import { getQuote } from "./services/quote.ts";
+import { getProtocol } from "./services/protocol.ts";
 
 const hex = z.string().regex(/^0x[0-9a-fA-F]*$/);
 const address = z.string().transform((v, ctx) => {
@@ -72,6 +74,23 @@ export function createApp(deps: Deps) {
     );
   });
   app.get("/markets/:series", async (c) => c.json(await getMarketDetail(deps, c.req.param("series"))));
+
+  // ---------------- protocol / quotes ----------------
+  app.get("/protocol", async (c) => c.json(await getProtocol(deps)));
+  app.get("/quote", async (c) => {
+    const q = z
+      .object({
+        series: z.string().min(1),
+        side: z.enum(["buy", "sell"]),
+        asset: z.enum(["PT", "YT", "PY"]),
+        token: z.enum(["ETH", "USDG", "STOCK"]),
+        amount: z.string().regex(/^\d+$/),
+        slippageBps: z.coerce.number().int().default(50),
+      })
+      .safeParse(c.req.query());
+    if (!q.success) throw new HttpError(400, q.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
+    return c.json(await getQuote(deps, { ...q.data, amount: BigInt(q.data.amount) }));
+  });
 
   // ---------------- comments ----------------
   app.get("/markets/:series/comments", async (c) =>

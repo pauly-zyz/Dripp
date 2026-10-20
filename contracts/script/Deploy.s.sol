@@ -38,6 +38,7 @@ contract Deploy is Script {
         address weth;
         address usdg;
         address v3Factory;
+        address quoterV2;
     }
 
     struct Deployment {
@@ -158,6 +159,10 @@ contract Deploy is Script {
             vm.toString(c.v3Factory),
             '","swapRouter":"',
             vm.toString(c.swapRouter),
+            '","legacyRouter":',
+            c.legacyRouter ? "true" : "false",
+            ',"quoterV2":"',
+            vm.toString(c.quoterV2),
             '","weth":"',
             vm.toString(c.weth),
             '","usdg":"',
@@ -187,6 +192,8 @@ contract Deploy is Script {
         c.v3Factory = vm.keyExistsJson(json, ".uniswap.v3Factory")
             ? json.readAddress(".uniswap.v3Factory")
             : address(0);
+        c.quoterV2 =
+            vm.keyExistsJson(json, ".uniswap.quoterV2") ? json.readAddress(".uniswap.quoterV2") : address(0);
 
         require(c.multisig != address(0), "config: isi `multisig`");
         require(c.keeper != address(0), "config: isi `keeper`");

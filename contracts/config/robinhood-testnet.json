@@ -15,7 +15,8 @@
     "weth": "0x7943e237c7F95DA44E0301572D358911207852Fa",
     "usdg": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
     "v3Factory": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
-    "positionManager": "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364"
+    "positionManager": "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
+    "quoterV2": "0xcf05Fc31A6B693DD0bEB76e958ae4BCD490dc985"
   },
   "stockTokens": [
     { "ticker": "TSLA", "address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", "depositCap": 0, "maturities": [1806019200] }

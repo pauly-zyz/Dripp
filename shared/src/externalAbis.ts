@@ -20,3 +20,19 @@ export const chainlinkAggregatorAbi = parseAbi([
   "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
   "function decimals() view returns (uint8)",
 ]);
+
+export const quoterV2Abi = parseAbi([
+  "function quoteExactInput(bytes path, uint256 amountIn) returns (uint256 amountOut, uint160[] sqrtPriceX96AfterList, uint32[] initializedTicksCrossedList, uint256 gasEstimate)",
+]);
+
+/** Uniswap SwapRouter02 (Robinhood Chain mainnet): no deadline in the params struct. */
+export const swapRouter02Abi = parseAbi([
+  "struct ExactInputParams { bytes path; address recipient; uint256 amountIn; uint256 amountOutMinimum; }",
+  "function exactInput(ExactInputParams params) payable returns (uint256 amountOut)",
+]);
+
+/** Classic Uniswap v3 SwapRouter (Robinhood Chain testnet): deadline inside the params struct. */
+export const swapRouterV1Abi = parseAbi([
+  "struct ExactInputParams { bytes path; address recipient; uint256 deadline; uint256 amountIn; uint256 amountOutMinimum; }",
+  "function exactInput(ExactInputParams params) payable returns (uint256 amountOut)",
+]);

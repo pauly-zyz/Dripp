@@ -13,3 +13,7 @@ contracts/broadcast/LocalRobinhood.s.sol/
 indexer/.ponder/
 indexer/generated/
 *.tsbuildinfo
+dump.rdb
+web/.next/
+web/next-env.d.ts
+web/test-results/

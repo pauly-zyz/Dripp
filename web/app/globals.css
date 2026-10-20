@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/* Dripp: dark, minimal, Robinhood-like. */
+@theme {
+  --color-bg: #000000;
+  --color-card: #101012;
+  --color-card-2: #17171a;
+  --color-line: #232327;
+  --color-fg: #ffffff;
+  --color-muted: #8e8e98;
+  --color-up: #00c805;
+  --color-down: #ff5000;
+  --color-warn: #ffc400;
+  --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--color-bg);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-up);
+  outline-offset: 2px;
+}

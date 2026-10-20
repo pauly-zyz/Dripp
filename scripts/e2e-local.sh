@@ -81,7 +81,7 @@ cfg = {
   "factory": "0x0000000000000000000000000000000000000000",
   "oracle": "0x0000000000000000000000000000000000000000",
   "uniswap": {"swapRouter": u["swapRouter"], "legacyRouter": False, "weth": u["weth"], "usdg": u["usdg"],
-              "v3Factory": u["v3Factory"], "positionManager": u["positionManager"]},
+              "v3Factory": u["v3Factory"], "positionManager": u["positionManager"], "quoterV2": u["quoterV2"]},
   "stockTokens": [{"ticker": "AAPL", "address": local["stockTokens"][0]["address"], "depositCap": 0,
                    "maturities": [1806019200]}],
 }

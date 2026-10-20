@@ -7,6 +7,9 @@
 import { describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { privateKeyToAccount } from "viem/accounts";
+import { createPublicClient, createWalletClient, erc20Abi, http, type Address, type Hex } from "viem";
+import { foundry } from "viem/chains";
+import { DrippRouterAbi, swapRouter02Abi } from "@dripp/shared";
 import { commentMessage } from "../src/services/comments.ts";
 import { referralMessage } from "../src/services/referrals.ts";
 
@@ -197,5 +200,79 @@ describe("websocket", () => {
     ws.close();
     expect(msg.data[0].series).toBe("AAPL-MAR27");
     expect(typeof msg.data[0].ptPrice.shares).toBe("number");
+  });
+});
+
+describe("protocol and quotes", () => {
+  const rpc = http(process.env.RPC_URL ?? "http://127.0.0.1:8545");
+  const pub = createPublicClient({ chain: foundry, transport: rpc });
+  const wallet = createWalletClient({ account: carol, chain: foundry, transport: rpc });
+  const balance = (token: Address) =>
+    pub.readContract({ abi: erc20Abi, address: token, functionName: "balanceOf", args: [carol.address] });
+
+  it("exposes contract addresses, fees and reserves", async () => {
+    const p = await get("/protocol");
+    expect(p.contracts.router).toMatch(/^0x[0-9a-f]{40}$/);
+    expect(p.fees).toEqual({ ytFeeBps: 500, zapFeeBps: 10, stockDripShareBps: 6000 });
+    expect(p.reserves).toHaveLength(1);
+    expect(p.reserves[0].backingRatio).toBeGreaterThanOrEqual(1);
+    expect(p.stockTokens[0].ticker).toBe("AAPL");
+  });
+
+  it("a buy quote executes through DrippRouter and delivers at least minOut", async () => {
+    const q = await get("/quote?series=AAPL-MAR27&side=buy&asset=PT&token=ETH&amount=100000000000000000&slippageBps=50");
+    expect(q.route.length).toBeGreaterThanOrEqual(3); // WETH -> ... -> stock -> PT
+    const m = (await get<any[]>("/markets"))[0];
+    const before = await balance(m.pt);
+    const block = await pub.getBlock();
+    const hash = await wallet.writeContract({
+      address: q.to,
+      abi: DrippRouterAbi,
+      functionName: "zap",
+      args: [
+        {
+          vault: q.params.vault,
+          target: q.params.target,
+          tokenIn: q.params.tokenIn,
+          amountIn: BigInt(q.params.amountIn),
+          path: q.params.path,
+          minOut: BigInt(q.params.minOut),
+          receiver: carol.address,
+          deadline: block.timestamp + 600n,
+        },
+      ],
+      value: BigInt(q.value),
+    });
+    expect((await pub.waitForTransactionReceipt({ hash })).status).toBe("success");
+    const got = (await balance(m.pt)) - before;
+    expect(got).toBe(BigInt(q.amountOut)); // nothing else moved the pool in between
+  });
+
+  it("a sell quote executes through the swap router", async () => {
+    const m = (await get<any[]>("/markets"))[0];
+    const amount = (await balance(m.pt)) / 2n;
+    const q = await get(`/quote?series=AAPL-MAR27&side=sell&asset=PT&token=STOCK&amount=${amount}`);
+    await pub.waitForTransactionReceipt({
+      hash: await wallet.writeContract({
+        address: q.approve.token,
+        abi: erc20Abi,
+        functionName: "approve",
+        args: [q.approve.spender, BigInt(q.approve.amount)],
+      }),
+    });
+    const before = await balance(m.stock.address);
+    const hash = await wallet.writeContract({
+      address: q.to,
+      abi: swapRouter02Abi,
+      functionName: "exactInput",
+      args: [{ path: q.params.path as Hex, recipient: carol.address, amountIn: amount, amountOutMinimum: BigInt(q.params.minOut) }],
+    });
+    expect((await pub.waitForTransactionReceipt({ hash })).status).toBe("success");
+    expect((await balance(m.stock.address)) - before).toBe(BigInt(q.amountOut));
+  });
+
+  it("rejects bad quote requests", async () => {
+    expect((await fetch(`${API}/quote?series=AAPL-MAR27&side=sell&asset=PT&token=ETH&amount=1`)).status).toBe(400);
+    expect((await fetch(`${API}/quote?series=AAPL-MAR27&side=buy&asset=PT&token=ETH&amount=abc`)).status).toBe(400);
   });
 });

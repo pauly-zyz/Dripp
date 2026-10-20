@@ -9,7 +9,15 @@ export interface Deployment {
   oracle: Address;
   router: Address;
   owner: Address;
-  uniswap: { v3Factory: Address; swapRouter: Address; weth: Address; usdg: Address };
+  uniswap: {
+    v3Factory: Address;
+    swapRouter: Address;
+    /** true = classic SwapRouter (deadline in params), false = SwapRouter02. */
+    legacyRouter: boolean;
+    quoterV2: Address;
+    weth: Address;
+    usdg: Address;
+  };
   stockTokens: { ticker: string; address: Address; feed: Address }[];
 }
 
@@ -29,6 +37,8 @@ export function loadDeployment(path = process.env.DRIPP_DEPLOYMENT): Deployment 
     uniswap: {
       v3Factory: lower(d.uniswap.v3Factory),
       swapRouter: lower(d.uniswap.swapRouter),
+      legacyRouter: Boolean(d.uniswap.legacyRouter),
+      quoterV2: lower(d.uniswap.quoterV2 ?? ZERO_ADDRESS),
       weth: lower(d.uniswap.weth),
       usdg: lower(d.uniswap.usdg),
     },

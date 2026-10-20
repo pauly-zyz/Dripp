@@ -31,6 +31,7 @@ contract LocalRobinhood is Script {
         address factory = _deploy("UniswapV3Factory", "");
         address npm = _deploy("NonfungiblePositionManager", abi.encode(factory, address(weth), address(0)));
         address router = _deploy("SwapRouter02", abi.encode(address(0), factory, npm, address(weth)));
+        address quoter = _deploy("QuoterV2", abi.encode(factory, address(weth)));
 
         weth.deposit{value: 100 ether}();
         usdg.mint(me, 600_000e6);
@@ -50,6 +51,8 @@ contract LocalRobinhood is Script {
             vm.toString(factory),
             '","positionManager":"',
             vm.toString(npm),
+            '","quoterV2":"',
+            vm.toString(quoter),
             '"},"stockTokens":[{"ticker":"AAPL","address":"',
             vm.toString(address(stock)),
             '"}]}'

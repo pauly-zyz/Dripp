@@ -15,7 +15,8 @@
     "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
     "usdg": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
     "v3Factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
-    "positionManager": "0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3"
+    "positionManager": "0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3",
+    "quoterV2": "0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7"
   },
   "stockTokens": [
     { "ticker": "AAPL", "address": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9", "depositCap": 1000, "maturities": [1806019200, 1821916800] },
