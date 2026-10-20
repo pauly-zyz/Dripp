@@ -8,6 +8,7 @@ import { Button, Card, Empty, ErrorBox, InfoTip, Skeleton } from "@/components/u
 import { txUrl } from "@/lib/chain";
 import { EDU } from "@/lib/edu";
 import { dateShort, num, signedPct, usd, wad } from "@/lib/format";
+import { DEMO, DEMO_ACCOUNT } from "@/lib/api";
 import { ReferralCard } from "@/components/ReferralCard";
 import { usePortfolio } from "@/lib/hooks";
 import { useTx } from "@/lib/tx";
@@ -27,7 +28,9 @@ const ACTIVITY: Record<string, string> = {
 };
 
 export default function PortfolioPage() {
-  const { address } = useAccount();
+  const { address: connected } = useAccount();
+  // Demo mode shows a sample wallet until a real one is connected.
+  const address = connected ?? (DEMO ? DEMO_ACCOUNT : undefined);
   const p = usePortfolio(address);
   const { run, busy } = useTx();
 

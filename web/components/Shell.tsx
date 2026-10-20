@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Drop, IconEarn, IconMarkets, IconPortfolio, IconShield } from "./Icons";
+import { DEMO } from "@/lib/api";
 import { ReferralBanner } from "./ReferralBanner";
 
 const NAV = [
@@ -44,6 +45,11 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+      {DEMO && (
+        <div className="border-b border-line/60 bg-card px-4 py-2 text-center text-xs text-muted">
+          <span className="font-semibold text-fg">Mode demo</span> · data contoh, kontrak Dripp belum di-deploy. Transaksi tidak dikirim.
+        </div>
+      )}
       <ReferralBanner />
       <main className="mx-auto max-w-5xl px-4 pt-4 pb-28 md:pb-12">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line/60 bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">

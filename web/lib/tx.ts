@@ -6,6 +6,7 @@ import { BaseError, ContractFunctionRevertedError, decodeErrorResult, erc20Abi, 
 import { DrippRouterAbi, DrippVaultAbi } from "@dripp/shared/browser";
 import { useAccount, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
 import { useToast } from "@/components/Toast";
+import { DEMO } from "./api";
 import { chain, txUrl } from "./chain";
 
 type Write = ReturnType<typeof useWriteContract>["writeContractAsync"];
@@ -75,6 +76,10 @@ export function useTx() {
   const [busy, setBusy] = useState<string | null>(null);
 
   async function run(label: string, flow: (ctx: TxContext) => Promise<Hash>) {
+    if (DEMO) {
+      toast({ kind: "info", title: `${label}: mode demo`, body: "Kontrak Dripp belum di-deploy, jadi transaksi tidak dikirim." });
+      return;
+    }
     if (!address || !client) {
       toast({ kind: "error", title: "Hubungkan wallet dulu" });
       return;

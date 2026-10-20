@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { useEffect, useState, type ReactNode } from "react";
 import { WagmiProvider } from "wagmi";
 import { ToastProvider, useToast } from "@/components/Toast";
-import { WS_URL, type Market } from "@/lib/api";
+import { DEMO, WS_URL, type Market } from "@/lib/api";
 import { wagmiConfig } from "@/lib/chain";
 
 /** Live prices and dividend notifications over the backend WebSocket. */
@@ -66,7 +66,7 @@ export function Providers({ children }: { children: ReactNode }) {
           modalSize="compact"
         >
           <ToastProvider>
-            <LiveUpdates />
+            {!DEMO && <LiveUpdates />}
             {children}
           </ToastProvider>
         </RainbowKitProvider>

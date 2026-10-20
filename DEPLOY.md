@@ -53,5 +53,25 @@ docker compose logs -f indexer       # tunggu "Started live indexing"
 
 ## Alternatif hosting web
 
-`web/` juga bisa di-deploy ke Vercel (root `web`, perintah build `pnpm --filter @dripp/web build`) dengan
-`NEXT_PUBLIC_API_URL` mengarah ke API yang dijalankan di server.
+`web/` juga bisa di-deploy ke Vercel dengan `NEXT_PUBLIC_API_URL` mengarah ke API yang dijalankan di server
+(lihat bagian berikut).
+
+## Preview frontend di Vercel
+
+Frontend (`web/`) bisa di-deploy ke Vercel, bahkan sebelum backend online:
+
+1. Di vercel.com → **Add New… → Project**, import repo `pauly-zyz/Dripp`.
+2. **Root Directory**: `web`. Konfigurasi build ada di `web/vercel.json` (Next.js, pnpm workspace).
+3. Deploy. Setiap push ke branch mana pun otomatis mendapat URL preview.
+
+Tanpa `NEXT_PUBLIC_API_URL`, build Vercel otomatis berjalan dalam **mode demo**: data contoh dari
+`web/lib/demo.ts`, banner "Mode demo" di atas, dan transaksi tidak dikirim. Setelah kontrak dan
+backend online, isi Environment Variables di Vercel lalu redeploy:
+
+| Variabel | Isi |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | `https://domain-anda/api` |
+| `NEXT_PUBLIC_CHAIN_ID` | `4663` |
+| `NEXT_PUBLIC_RPC_URL` | RPC Robinhood Chain |
+| `NEXT_PUBLIC_WC_PROJECT_ID` | Project ID WalletConnect (opsional) |
+| `NEXT_PUBLIC_DEMO` | `0` (atau `1` untuk memaksa mode demo) |

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { erc20Abi, formatUnits, parseUnits, zeroAddress, type Address } from "viem";
 import { useAccount, useBalance, useReadContracts } from "wagmi";
 import { DrippRouterAbi, DrippVaultAbi, swapRouter02Abi, swapRouterV1Abi } from "@dripp/shared/browser";
-import type { BuyQuote, Market, QuoteToken, SellQuote } from "@/lib/api";
+import { DEMO, type BuyQuote, type Market, type QuoteToken, type SellQuote } from "@/lib/api";
 import { chain } from "@/lib/chain";
 import { EDU } from "@/lib/edu";
 import { dateShort, num, wad } from "@/lib/format";
@@ -170,9 +170,10 @@ export function TradePanel({
       : null,
   );
   const q = quote.data && quote.data.params.amountIn === amount.toString() ? quote.data : undefined;
-  const insufficient = input.balance !== undefined && amount > input.balance;
+  const insufficient = !DEMO && input.balance !== undefined && amount > input.balance;
 
   const execute = () => {
+    if (DEMO) return run(actionLabel, () => Promise.reject(new Error("demo")));
     if (!address) return;
     if (mode === "buy" && q?.side === "buy") {
       const b = q as BuyQuote;
@@ -237,7 +238,7 @@ export function TradePanel({
   }
 
   const needsQuote = mode === "buy" || mode === "sell";
-  const disabledReason = !address
+  const disabledReason = !address && !DEMO
     ? null
     : market.paused
       ? "Seri sedang di-pause"
@@ -337,7 +338,7 @@ export function TradePanel({
         {mode === "redeem" && <p className="py-1 text-xs text-muted">{EDU.redeem}</p>}
       </div>
 
-      {!address ? (
+      {!address && !DEMO ? (
         <ConnectButton.Custom>
           {({ openConnectModal }) => (
             <Button onClick={openConnectModal} className="w-full">

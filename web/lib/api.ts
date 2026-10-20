@@ -1,5 +1,10 @@
 import type { Address, Hex } from "viem";
 
+/** Demo mode serves sample data from lib/demo.ts instead of the backend (previews without a deployment). */
+export const DEMO = process.env.NEXT_PUBLIC_DEMO === "1";
+/** Sample wallet whose portfolio demo mode shows when no wallet is connected. */
+export const DEMO_ACCOUNT = "0xd5e0d5e0d5e0d5e0d5e0d5e0d5e0d5e0d5e0d5e0" as Address;
+
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(/\/$/, "");
 export const WS_URL = API_URL.replace(/^http/, "ws") + "/ws";
 
@@ -13,6 +18,7 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  if (DEMO) return (await import("./demo")).demoApi<T>(path, init);
   const r = await fetch(API_URL + path, {
     ...init,
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
